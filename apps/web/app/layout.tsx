@@ -103,7 +103,12 @@ export default function ParentLayout({
             </head>
             <body>
                 {/* <PostHogProvider> */}
-                <ClerkProvider>
+                <ClerkProvider
+                    publishableKey={
+                        process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+                        'pk_test_Y2xlcmstbW9jay1rZXktOTkuY2xlcmsuYWNjb3VudHMuZGV2JA=='
+                    }
+                >
                     <RootProvider>
                         {/* <ThemeProvider
             attribute="class"
