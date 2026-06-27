@@ -1,4 +1,5 @@
 import { runWorkflow } from '@repo/ai/workflow';
+import { runWithRequestContext } from '@repo/ai/providers';
 import { CHAT_MODE_CREDIT_COSTS } from '@repo/shared/config';
 import { logger } from '@repo/shared/logger';
 import { EVENT_TYPES, posthog } from '@repo/shared/posthog';
@@ -63,53 +64,66 @@ export async function executeStream({
     onFinish?: () => Promise<void>;
 }): Promise<{ success: boolean } | Response> {
     try {
-        const creditCost = CHAT_MODE_CREDIT_COSTS[data.mode];
+        const creditCost = data.mode ? (CHAT_MODE_CREDIT_COSTS[data.mode] || 0) : 0;
 
         const { signal } = abortController;
 
-        const workflow = runWorkflow({
-            mode: data.mode,
-            question: data.prompt,
-            threadId: data.threadId,
-            threadItemId: data.threadItemId,
-            messages: data.messages,
-            customInstructions: data.customInstructions,
-            webSearch: data.webSearch || false,
-            config: {
-                maxIterations: data.maxIterations || 3,
-                signal,
-            },
-            gl,
-            mcpConfig: data.mcpConfig || {},
-            showSuggestions: data.showSuggestions || false,
-            onFinish: onFinish,
-        });
-
-        workflow.onAll((event, payload) => {
-            sendMessage(controller, encoder, {
-                type: event,
+        const workflow = await runWithRequestContext({
+            selectedProviderId: data.selectedProviderId,
+            selectedModelId: data.selectedModelId,
+            apiKey: data.apiKey,
+            baseUrl: data.baseUrl,
+        }, async () => {
+            const wf = runWorkflow({
+                mode: data.mode || 'gpt-4o-mini' as any,
+                question: data.prompt,
                 threadId: data.threadId,
                 threadItemId: data.threadItemId,
-                parentThreadItemId: data.parentThreadItemId,
-                query: data.prompt,
-                mode: data.mode,
+                messages: data.messages,
+                customInstructions: data.customInstructions,
                 webSearch: data.webSearch || false,
+                config: {
+                    maxIterations: data.maxIterations || 3,
+                    signal,
+                },
+                gl,
+                mcpConfig: data.mcpConfig || {},
                 showSuggestions: data.showSuggestions || false,
-                [event]: payload,
+                onFinish: onFinish,
+                selectedProviderId: data.selectedProviderId,
+                selectedModelId: data.selectedModelId,
+                apiKey: data.apiKey,
+                baseUrl: data.baseUrl,
             });
+
+            wf.onAll((event, payload) => {
+                sendMessage(controller, encoder, {
+                    type: event,
+                    threadId: data.threadId,
+                    threadItemId: data.threadItemId,
+                    parentThreadItemId: data.parentThreadItemId,
+                    query: data.prompt,
+                    mode: data.mode,
+                    webSearch: data.webSearch || false,
+                    showSuggestions: data.showSuggestions || false,
+                    [event]: payload,
+                });
+            });
+
+            if (process.env.NODE_ENV === 'development') {
+                logger.debug('Starting workflow', { threadId: data.threadId });
+            }
+
+            await wf.start('router', {
+                question: data.prompt,
+            });
+
+            if (process.env.NODE_ENV === 'development') {
+                logger.debug('Workflow completed', { threadId: data.threadId });
+            }
+
+            return wf;
         });
-
-        if (process.env.NODE_ENV === 'development') {
-            logger.debug('Starting workflow', { threadId: data.threadId });
-        }
-
-        await workflow.start('router', {
-            question: data.prompt,
-        });
-
-        if (process.env.NODE_ENV === 'development') {
-            logger.debug('Workflow completed', { threadId: data.threadId });
-        }
 
         userId &&
             posthog.capture({

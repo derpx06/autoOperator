@@ -1,6 +1,6 @@
 import { ChatMode } from '@repo/shared/config';
 import { CoreMessage } from 'ai';
-import { ProviderEnumType } from './providers';
+import { ProviderType } from './providers';
 
 export enum ModelEnum {
     GPT_4o_Mini = 'gpt-4o-mini',
@@ -21,7 +21,7 @@ export enum ModelEnum {
 export type Model = {
     id: ModelEnum;
     name: string;
-    provider: ProviderEnumType;
+    provider: ProviderType;
     maxTokens: number;
     contextWindow: number;
 };

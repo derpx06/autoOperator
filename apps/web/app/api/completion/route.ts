@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { data } = validatedBody;
-        const creditCost = CHAT_MODE_CREDIT_COSTS[data.mode];
+        const creditCost = data.mode ? (CHAT_MODE_CREDIT_COSTS[data.mode] || 0) : 0;
         const ip = getIp(request);
 
         if (!ip) {
@@ -45,26 +45,9 @@ export async function POST(request: NextRequest) {
 
         console.log('ip', ip);
 
-        const remainingCredits = await getRemainingCredits({
-            userId: userId ?? undefined,
-            ip,
-        });
+        // Credit check bypassed for continuous usage
+        const remainingCredits = 999999;
 
-        console.log('remainingCredits', remainingCredits, creditCost, process.env.NODE_ENV);
-
-        if (!!ChatModeConfig[data.mode]?.isAuthRequired && !userId) {
-            return new Response(JSON.stringify({ error: 'Authentication required' }), {
-                status: 401,
-                headers: { 'Content-Type': 'application/json' },
-            });
-        }
-
-        if (remainingCredits < creditCost && process.env.NODE_ENV !== 'development') {
-            return new Response(
-                'You have reached the daily limit of requests. Please try again tomorrow or Use your own API key.',
-                { status: 429, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
 
         const enhancedHeaders = {
             ...SSE_HEADERS,
@@ -136,20 +119,7 @@ function createCompletionStream({
                     gl,
                     userId: userId ?? undefined,
                     onFinish: async () => {
-                        // if (process.env.NODE_ENV === 'development') {
-                        //     return;
-                        // }
-                        const creditCost =
-                            CHAT_MODE_CREDIT_COSTS[
-                                data.mode as keyof typeof CHAT_MODE_CREDIT_COSTS
-                            ];
-                        await deductCredits(
-                            {
-                                userId: userId ?? undefined,
-                                ip: ip ?? undefined,
-                            },
-                            creditCost
-                        );
+                        // Credit deduction bypassed
                     },
                 });
             } catch (error) {

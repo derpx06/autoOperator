@@ -115,7 +115,7 @@ export const CommandSearch = () => {
             icon: IconKey,
             action: () => {
                 setIsSettingsOpen(true);
-                setSettingTab('api-keys');
+                setSettingTab('providers');
                 onClose();
             },
         },

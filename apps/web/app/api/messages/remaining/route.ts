@@ -15,22 +15,20 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const remainingCredits = await getRemainingCredits({ userId, ip });
+        const remainingCredits = 999999;
         const resetTime = getNextResetTime();
 
         return NextResponse.json(
             {
                 remaining: remainingCredits,
-                maxLimit: userId ? DAILY_CREDITS_AUTH : DAILY_CREDITS_IP,
+                maxLimit: 999999,
                 reset: new Date(resetTime).toISOString(),
                 isAuthenticated: !!userId,
             },
             {
                 headers: {
-                    'X-Credits-Limit': userId
-                        ? DAILY_CREDITS_AUTH.toString()
-                        : DAILY_CREDITS_IP.toString(),
-                    'X-Credits-Remaining': remainingCredits.toString(),
+                    'X-Credits-Limit': '999999',
+                    'X-Credits-Remaining': '999999',
                     'X-Credits-Reset': resetTime.toString(),
                 },
             }

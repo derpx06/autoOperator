@@ -1,4 +1,5 @@
 import { createTask } from '@repo/orchestrator';
+import { buildAllTools } from '../../tools/mcp';
 import { getModelFromChatMode } from '../../models';
 import { WorkflowContextSchema, WorkflowEventSchema } from '../flow';
 import { ChunkBuffer, generateText, getHumanizedDate, handleError } from '../utils';
@@ -15,6 +16,7 @@ export const completionTask = createTask<WorkflowEventSchema, WorkflowContextSch
         const customInstructions = context?.get('customInstructions');
         const mode = context.get('mode');
         const webSearch = context.get('webSearch') || false;
+        const mcpConfig = context.get('mcpConfig') || {};
 
         let messages =
             context
@@ -24,8 +26,6 @@ export const completionTask = createTask<WorkflowEventSchema, WorkflowContextSch
                         (message.role === 'user' || message.role === 'assistant') &&
                         !!message.content
                 ) || [];
-
-        console.log('customInstructions', customInstructions);
 
         if (
             customInstructions &&
@@ -50,6 +50,29 @@ export const completionTask = createTask<WorkflowEventSchema, WorkflowContextSch
         let prompt = `You are a helpful assistant that can answer questions and help with tasks.
         Today is ${getHumanizedDate()}.
         `;
+
+        // Resolve MCP tools if any servers are configured
+        let mcpTools: Record<string, any> | undefined;
+        let mcpCleanup: (() => void) | undefined;
+        const appUrl = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_APP_URL)
+            || (typeof self !== 'undefined' && (self as any).NEXT_PUBLIC_APP_URL)
+            || '';
+        const hasMcpServers = Object.keys(mcpConfig).length > 0;
+
+        if (hasMcpServers && appUrl) {
+            try {
+                const mcpResult = await buildAllTools({
+                    proxyEndpoint: `${appUrl}/api/mcp/proxy`,
+                    mcpServers: mcpConfig,
+                });
+                if (mcpResult) {
+                    mcpTools = mcpResult.allTools;
+                    mcpCleanup = mcpResult.onClose;
+                }
+            } catch (e) {
+                console.warn('[MCP] Failed to build tools, proceeding without MCP:', e);
+            }
+        }
 
         const reasoningBuffer = new ChunkBuffer({
             threshold: 200,
@@ -85,20 +108,32 @@ export const completionTask = createTask<WorkflowEventSchema, WorkflowContextSch
             },
         });
 
-        const response = await generateText({
-            model,
-            messages,
-            prompt,
-            signal,
-            toolChoice: 'auto',
-            maxSteps: 2,
-            onReasoning: (chunk, fullText) => {
-                reasoningBuffer.add(chunk);
-            },
-            onChunk: (chunk, fullText) => {
-                chunkBuffer.add(chunk);
-            },
-        });
+        let response = '';
+        try {
+            response = await generateText({
+                model,
+                messages,
+                prompt,
+                signal,
+                tools: mcpTools,
+                toolChoice: mcpTools ? 'auto' : 'none',
+                maxSteps: mcpTools ? 5 : 2,
+                onToolCall: toolCall => {
+                    events?.update('toolCalls', prev => [...(prev || []), toolCall]);
+                },
+                onToolResult: toolResult => {
+                    events?.update('toolResults', prev => [...(prev || []), toolResult]);
+                },
+                onReasoning: (chunk, fullText) => {
+                    reasoningBuffer.add(chunk);
+                },
+                onChunk: (chunk, fullText) => {
+                    chunkBuffer.add(chunk);
+                },
+            });
+        } finally {
+            mcpCleanup?.();
+        }
 
         reasoningBuffer.end();
         chunkBuffer.end();

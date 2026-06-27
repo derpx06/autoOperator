@@ -34,8 +34,7 @@ async function getMcpClients(config: MCPServersConfig): Promise<Client[]> {
                                 version: '0.1.0',
                                 baseUrl: baseUrl,
                                 proxyUrl: proxyEndpoint,
-                        
-                        },
+                        } as any,
                         
                         {
                                 capabilities: {

@@ -9,12 +9,40 @@ import { Badge, Dialog, DialogContent, Input } from '@repo/ui';
 import { useChatEditor } from '@repo/common/hooks';
 import { Editor } from '@tiptap/react';
 import { useState } from 'react';
-import { ApiKeys, useApiKeysStore } from '../store/api-keys.store';
 import { SETTING_TABS, useAppStore } from '../store/app.store';
 import { useChatStore } from '../store/chat.store';
 import { ChatEditor } from './chat-input';
 import { BYOKIcon, ToolIcon } from './icons';
 import { ThemePicker } from './theme-toggle';
+import {
+    getProviderConfigs,
+    saveProviderConfig,
+    getDefaultProvider,
+    setDefaultProvider,
+    getDefaultModel,
+    setDefaultModel,
+    syncModels,
+    testProvider,
+    providerRegistry,
+    ProviderConfig,
+    ProviderType,
+    maskApiKey
+} from '@repo/ai/providers';
+import {
+    IconCheck,
+    IconEye,
+    IconEyeOff,
+    IconLoader2,
+    IconPlus,
+    IconRefresh,
+    IconSearch,
+    IconX,
+    IconPlug,
+    IconAlertCircle,
+    IconChevronDown,
+    IconChevronUp,
+    IconStar
+} from '@tabler/icons-react';
 
 export const SettingsModal = () => {
     const isSettingOpen = useAppStore(state => state.isSettingsOpen);
@@ -31,9 +59,9 @@ export const SettingsModal = () => {
         },
         {
             icon: <IconKey size={15} strokeWidth={2} />,
-            title: 'API Keys',
-            key: SETTING_TABS.API_KEYS,
-            component: <ApiKeySettings />,
+            title: 'Providers',
+            key: SETTING_TABS.PROVIDERS,
+            component: <ProvidersSettings />,
         },
     ];
 
@@ -292,126 +320,396 @@ const AddToolDialog = ({ isOpen, onOpenChange, onAddTool }: AddToolDialogProps) 
     );
 };
 
-export const ApiKeySettings = () => {
-    const apiKeys = useApiKeysStore(state => state.getAllKeys());
-    const setApiKey = useApiKeysStore(state => state.setKey);
-    const [isEditing, setIsEditing] = useState<string | null>(null);
+export const ProvidersSettings = () => {
+    const [configs, setConfigs] = useState<ProviderConfig[]>(() => getProviderConfigs());
+    const [search, setSearch] = useState('');
+    const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+    const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
+    const [testingProvider, setTestingProvider] = useState<string | null>(null);
+    const [testResults, setTestResults] = useState<Record<string, string>>({});
+    const [newModelNames, setNewModelNames] = useState<Record<string, string>>({});
+    const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
 
-    const apiKeyList = [
-        {
-            name: 'OpenAI',
-            key: 'OPENAI_API_KEY' as keyof ApiKeys,
-            value: apiKeys.OPENAI_API_KEY,
-            url: 'https://platform.openai.com/api-keys',
-            color: 'from-emerald-500/10 to-transparent',
-            dot: 'bg-emerald-500',
-        },
-        {
-            name: 'Anthropic',
-            key: 'ANTHROPIC_API_KEY' as keyof ApiKeys,
-            value: apiKeys.ANTHROPIC_API_KEY,
-            url: 'https://console.anthropic.com/settings/keys',
-            color: 'from-orange-500/10 to-transparent',
-            dot: 'bg-orange-500',
-        },
-        {
-            name: 'Google Gemini',
-            key: 'GEMINI_API_KEY' as keyof ApiKeys,
-            value: apiKeys.GEMINI_API_KEY,
-            url: 'https://ai.google.dev/api',
-            color: 'from-blue-500/10 to-transparent',
-            dot: 'bg-blue-500',
-        },
-    ];
+    const [defaultProvider, setDefProvider] = useState<string>(() => getDefaultProvider() || 'google');
+    const [defaultModel, setDefModel] = useState<string>(() => getDefaultModel() || 'gemini-2.0-flash');
 
-    const handleSave = (keyName: keyof ApiKeys, value: string) => {
-        setApiKey(keyName, value);
-        setIsEditing(null);
+    const updateStore = useChatStore(state => state.setSelectedProviderId);
+    const updateStoreModel = useChatStore(state => state.setSelectedModelId);
+
+    const handleToggleEnable = (providerId: string, enabled: boolean) => {
+        const config = configs.find(c => c.id === providerId);
+        if (!config) return;
+        const updated = { ...config, enabled, updatedAt: Date.now() };
+        saveProviderConfig(updated);
+        setConfigs(getProviderConfigs());
     };
 
-    const getMaskedKey = (key: string) => {
-        if (!key) return '';
-        return '••••••••••••' + key.slice(-4);
+    const handleSaveField = (providerId: string, field: 'apiKey' | 'baseUrl', value: string) => {
+        const config = configs.find(c => c.id === providerId);
+        if (!config) return;
+        const updated = { ...config, [field]: value, updatedAt: Date.now() };
+        saveProviderConfig(updated);
+        setConfigs(getProviderConfigs());
     };
+
+    const handleSync = async (providerId: string) => {
+        const config = configs.find(c => c.id === providerId);
+        if (!config) return;
+        setSyncingProvider(providerId);
+        try {
+            const synced = await syncModels(config);
+            const updated = {
+                ...config,
+                models: synced,
+                defaultModel: synced[0] || config.defaultModel,
+                updatedAt: Date.now()
+            };
+            saveProviderConfig(updated);
+            setConfigs(getProviderConfigs());
+            setTestResults(prev => ({ ...prev, [providerId]: `Synced ${synced.length} models` }));
+        } catch (e: any) {
+            setTestResults(prev => ({ ...prev, [providerId]: `Sync failed: ${e.message || e}` }));
+        } finally {
+            setSyncingProvider(null);
+        }
+    };
+
+    const handleTest = async (providerId: string) => {
+        const config = configs.find(c => c.id === providerId);
+        if (!config) return;
+        setTestingProvider(providerId);
+        try {
+            const testModelId = config.defaultModel || config.models[0] || '';
+            const res = await testProvider(config, testModelId);
+            setTestResults(prev => ({ ...prev, [providerId]: `Status: ${res}` }));
+        } catch (e: any) {
+            setTestResults(prev => ({ ...prev, [providerId]: `Status: Error - ${e.message || e}` }));
+        } finally {
+            setTestingProvider(null);
+        }
+    };
+
+    const handleAddModel = (providerId: string) => {
+        const name = newModelNames[providerId]?.trim();
+        if (!name) return;
+        const config = configs.find(c => c.id === providerId);
+        if (!config) return;
+        if (config.models.includes(name)) return;
+        const updated = {
+            ...config,
+            models: [...config.models, name],
+            updatedAt: Date.now()
+        };
+        saveProviderConfig(updated);
+        setConfigs(getProviderConfigs());
+        setNewModelNames(prev => ({ ...prev, [providerId]: '' }));
+    };
+
+    const handleDeleteModel = (providerId: string, model: string) => {
+        const config = configs.find(c => c.id === providerId);
+        if (!config) return;
+        const updated = {
+            ...config,
+            models: config.models.filter((m: string) => m !== model),
+            updatedAt: Date.now()
+        };
+        saveProviderConfig(updated);
+        setConfigs(getProviderConfigs());
+    };
+
+    const handleSetDefaultProvider = (providerId: string) => {
+        setDefaultProvider(providerId);
+        setDefProvider(providerId);
+        // Fallback default model for the new default provider
+        const config = configs.find(c => c.id === providerId);
+        if (config) {
+            const model = config.defaultModel || config.models[0] || '';
+            setDefaultModel(model);
+            setDefModel(model);
+            updateStoreModel(model);
+        }
+        updateStore(providerId);
+    };
+
+    const handleSetDefaultModel = (model: string) => {
+        setDefaultModel(model);
+        setDefModel(model);
+        updateStoreModel(model);
+    };
+
+    const toggleShowKey = (providerId: string) => {
+        setShowKeys(prev => ({ ...prev, [providerId]: !prev[providerId] }));
+    };
+
+    // Filter providers
+    const filteredConfigs = configs.filter(config =>
+        config.name.toLowerCase().includes(search.toLowerCase()) ||
+        config.type.toLowerCase().includes(search.toLowerCase())
+    );
+
+    // Get current default provider models
+    const defaultProviderConfig = configs.find(c => c.id === defaultProvider);
+    const availableDefaultModels = defaultProviderConfig?.models || [];
 
     return (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-6 pb-6">
             <div className="flex flex-col gap-1">
                 <h2 className="flex items-center gap-2 text-base font-semibold">
-                    API Keys <BYOKIcon />
+                    BYOK Provider Hub <BYOKIcon />
                 </h2>
                 <p className="text-muted-foreground text-xs leading-relaxed">
-                    Keys are stored locally in your browser and never sent to our servers.
+                    Configure your AI provider credentials. API keys are stored only in your browser database and never logged.
                 </p>
             </div>
 
-            <div className="flex flex-col gap-3">
-                {apiKeyList.map(apiKey => (
-                    <div
-                        key={apiKey.key}
-                        className={`border-border/70 bg-gradient-to-br ${apiKey.color} rounded-xl border p-4`}
-                    >
-                        <div className="mb-3 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className={`size-2 rounded-full ${apiKey.dot}`} />
-                                <span className="text-sm font-semibold">{apiKey.name}</span>
-                            </div>
-                            <a
-                                href={apiKey.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-brand text-xs hover:underline"
-                            >
-                                Get key →
-                            </a>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            {isEditing === apiKey.key ? (
-                                <>
-                                    <div className="flex-1">
-                                        <Input
-                                            value={apiKey.value || ''}
-                                            placeholder={`Enter ${apiKey.name} API key`}
-                                            className="h-8 text-sm"
-                                            onChange={e => setApiKey(apiKey.key, e.target.value)}
-                                        />
-                                    </div>
-                                    <Button
-                                        variant="default"
-                                        size="sm"
-                                        className="shrink-0"
-                                        onClick={() => handleSave(apiKey.key, apiKey.value || '')}
-                                    >
-                                        Save
-                                    </Button>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="bg-background/60 flex flex-1 items-center gap-2 rounded-lg border px-3 py-1.5">
-                                        {apiKey.value ? (
-                                            <span className="font-mono text-xs flex-1">
-                                                {getMaskedKey(apiKey.value)}
-                                            </span>
-                                        ) : (
-                                            <span className="text-muted-foreground flex-1 text-xs">
-                                                No key set
-                                            </span>
-                                        )}
-                                    </div>
-                                    <Button
-                                        variant={'bordered'}
-                                        size="sm"
-                                        className="shrink-0"
-                                        onClick={() => setIsEditing(apiKey.key)}
-                                    >
-                                        {apiKey.value ? 'Change' : 'Add'}
-                                    </Button>
-                                </>
-                            )}
-                        </div>
+            {/* Global Default Config */}
+            <div className="bg-secondary/40 border-border/80 flex flex-col gap-4 rounded-2xl border p-4">
+                <h3 className="text-sm font-semibold tracking-tight">Global Workspace Defaults</h3>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-muted-foreground text-xs font-medium">Default Provider</label>
+                        <select
+                            value={defaultProvider}
+                            onChange={(e) => handleSetDefaultProvider(e.target.value)}
+                            className="bg-background border-border text-foreground h-9 w-full rounded-lg border px-3 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+                        >
+                            {configs.filter(c => c.enabled).map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
                     </div>
-                ))}
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-muted-foreground text-xs font-medium">Default Model</label>
+                        <select
+                            value={defaultModel}
+                            onChange={(e) => handleSetDefaultModel(e.target.value)}
+                            className="bg-background border-border text-foreground h-9 w-full rounded-lg border px-3 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+                        >
+                            {availableDefaultModels.map((m: string) => (
+                                <option key={m} value={m}>{m}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {/* Search and List */}
+            <div className="flex flex-col gap-3">
+                <div className="relative">
+                    <IconSearch size={15} className="text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search AI providers..."
+                        className="pl-9 h-9 text-sm"
+                    />
+                </div>
+
+                <div className="flex flex-col gap-2 max-h-[350px] overflow-y-auto pr-1 no-scrollbar">
+                    {filteredConfigs.map(config => {
+                        const isExpanded = expandedProvider === config.id;
+                        const isEnabled = config.enabled;
+                        const registryEntry = providerRegistry[config.type];
+
+                        return (
+                            <div
+                                key={config.id}
+                                className={`border border-border/70 rounded-xl transition-all duration-200 ${
+                                    isEnabled ? 'bg-secondary/20' : 'bg-secondary/5 opacity-70'
+                                }`}
+                            >
+                                {/* Header */}
+                                <div className="flex items-center justify-between p-3.5">
+                                    <div
+                                        className="flex flex-1 items-center gap-3 cursor-pointer select-none"
+                                        onClick={() => setExpandedProvider(isExpanded ? null : config.id)}
+                                    >
+                                        <div className="bg-brand/10 text-brand flex size-8 items-center justify-center rounded-lg">
+                                            <IconPlug size={16} />
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-semibold flex items-center gap-2">
+                                                {config.name}
+                                                {defaultProvider === config.id && (
+                                                    <span className="text-[10px] font-medium bg-brand/15 text-brand px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                                                        <IconStar size={10} className="fill-brand" /> Default
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className="text-muted-foreground text-[10px] uppercase tracking-wider font-semibold">
+                                                {config.isLocal ? 'Local Provider' : 'BYOK Cloud'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => handleToggleEnable(config.id, !isEnabled)}
+                                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                                isEnabled ? 'bg-brand' : 'bg-muted'
+                                            }`}
+                                        >
+                                            <span
+                                                className={`pointer-events-none inline-block size-4 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
+                                                    isEnabled ? 'translate-x-4' : 'translate-x-0'
+                                                }`}
+                                            />
+                                        </button>
+                                        <button
+                                            onClick={() => setExpandedProvider(isExpanded ? null : config.id)}
+                                            className="text-muted-foreground hover:text-foreground p-1 transition-colors"
+                                        >
+                                            {isExpanded ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Body */}
+                                {isExpanded && (
+                                    <div className="border-t border-border/50 p-4 flex flex-col gap-4 bg-background/50 rounded-b-xl">
+                                        {/* API Key */}
+                                        {registryEntry?.requiresApiKey && (
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-semibold">API Key</label>
+                                                    {registryEntry.requiresApiKey && (
+                                                        <span className="text-[10px] text-muted-foreground">Required</span>
+                                                    )}
+                                                </div>
+                                                <div className="relative flex items-center">
+                                                    <Input
+                                                        type={showKeys[config.id] ? 'text' : 'password'}
+                                                        value={config.apiKey || ''}
+                                                        onChange={(e) => handleSaveField(config.id, 'apiKey', e.target.value)}
+                                                        placeholder="Enter your API key"
+                                                        className="h-8 text-xs pr-8"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleShowKey(config.id)}
+                                                        className="text-muted-foreground hover:text-foreground absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors"
+                                                    >
+                                                        {showKeys[config.id] ? <IconEyeOff size={14} /> : <IconEye size={14} />}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Base URL */}
+                                        {registryEntry?.supportsBaseUrl && (
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-xs font-semibold">Base URL</label>
+                                                <Input
+                                                    type="text"
+                                                    value={config.baseUrl || ''}
+                                                    onChange={(e) => handleSaveField(config.id, 'baseUrl', e.target.value)}
+                                                    placeholder={registryEntry.defaultBaseUrl || 'http://localhost:8080'}
+                                                    className="h-8 text-xs"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* Model management */}
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-semibold">Models</label>
+                                            <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto border border-border/40 p-2 rounded-lg bg-background/30 no-scrollbar">
+                                                {config.models.map((m: string) => (
+                                                    <span
+                                                        key={m}
+                                                        className="inline-flex items-center gap-1 bg-secondary/80 text-foreground text-[10px] font-semibold px-2 py-0.5 rounded-md border border-border/30"
+                                                    >
+                                                        {m}
+                                                        <button
+                                                            onClick={() => handleDeleteModel(config.id, m)}
+                                                            className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
+                                                        >
+                                                            <IconX size={10} />
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                                {config.models.length === 0 && (
+                                                    <span className="text-muted-foreground text-[10px] italic">No models configured</span>
+                                                )}
+                                            </div>
+
+                                            {/* Add/Sync buttons */}
+                                            <div className="flex gap-2 items-center mt-1">
+                                                <div className="flex-1 relative flex items-center">
+                                                    <Input
+                                                        type="text"
+                                                        value={newModelNames[config.id] || ''}
+                                                        onChange={(e) => setNewModelNames(prev => ({ ...prev, [config.id]: e.target.value }))}
+                                                        placeholder="Add custom model ID..."
+                                                        className="h-8 text-xs pr-8"
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') handleAddModel(config.id);
+                                                        }}
+                                                    />
+                                                    <button
+                                                        onClick={() => handleAddModel(config.id)}
+                                                        className="text-muted-foreground hover:text-foreground absolute right-2 top-1/2 -translate-y-1/2 transition-colors p-0.5"
+                                                    >
+                                                        <IconPlus size={14} />
+                                                    </button>
+                                                </div>
+
+                                                {registryEntry?.supportsModelSync && (
+                                                    <Button
+                                                        variant="bordered"
+                                                        size="xs"
+                                                        className="h-8 rounded-lg shrink-0 px-2.5"
+                                                        onClick={() => handleSync(config.id)}
+                                                        disabled={syncingProvider === config.id}
+                                                    >
+                                                        {syncingProvider === config.id ? (
+                                                            <IconLoader2 size={12} className="animate-spin mr-1" />
+                                                        ) : (
+                                                            <IconRefresh size={12} className="mr-1" />
+                                                        )}
+                                                        Sync
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Testing Connection */}
+                                        <div className="border-t border-border/30 pt-3.5 flex items-center justify-between gap-4">
+                                            <Button
+                                                variant="bordered"
+                                                size="xs"
+                                                className="h-7 rounded-lg"
+                                                onClick={() => handleTest(config.id)}
+                                                disabled={testingProvider === config.id}
+                                            >
+                                                {testingProvider === config.id ? (
+                                                    <IconLoader2 size={12} className="animate-spin mr-1" />
+                                                ) : (
+                                                    <IconPlug size={12} className="mr-1" />
+                                                )}
+                                                Test Connection
+                                            </Button>
+
+                                            {testResults[config.id] && (
+                                                <span className={`text-[10px] font-semibold flex items-center gap-1.5 ${
+                                                    testResults[config.id].includes('Connected') || testResults[config.id].includes('Synced')
+                                                        ? 'text-emerald-500'
+                                                        : 'text-rose-500'
+                                                }`}>
+                                                    {testResults[config.id].includes('Connected') || testResults[config.id].includes('Synced') ? (
+                                                        <IconCheck size={12} />
+                                                    ) : (
+                                                        <IconAlertCircle size={12} />
+                                                    )}
+                                                    {testResults[config.id]}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );

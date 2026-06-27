@@ -11,12 +11,16 @@
         "./models": "./models.ts",
         "./tools": "./tools/index.ts",
         "./workflow": "./workflow/flow.ts",
-        "./worker": "./worker/index.ts"
+        "./worker": "./worker/index.ts",
+        "./providers": "./providers/index.ts"
     },
     "dependencies": {
         "@ai-sdk/anthropic": "^1.1.8",
+        "@ai-sdk/cohere": "^4.0.0",
         "@ai-sdk/fireworks": "^0.1.16",
         "@ai-sdk/google": "^1.1.16",
+        "@ai-sdk/groq": "^4.0.0",
+        "@ai-sdk/mistral": "^4.0.0",
         "@ai-sdk/openai": "^1.1.11",
         "@ai-sdk/togetherai": "^0.1.11",
         "@anthropic-ai/sdk": "^0.36.3",

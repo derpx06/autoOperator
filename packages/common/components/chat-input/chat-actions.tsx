@@ -21,7 +21,9 @@ import {
     IconPaperclip,
     IconPlayerStopFilled,
     IconWorld,
+    IconPlug,
 } from '@tabler/icons-react';
+import { getProviderConfigs } from '@repo/ai/providers';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -140,9 +142,17 @@ export const AttachmentButton = () => {
 export const ChatModeButton = () => {
     const chatMode = useChatStore(state => state.chatMode);
     const setChatMode = useChatStore(state => state.setChatMode);
+    const selectedProviderId = useChatStore(state => state.selectedProviderId);
+    const selectedModelId = useChatStore(state => state.selectedModelId);
+    const setSelectedProviderId = useChatStore(state => state.setSelectedProviderId);
+    const setSelectedModelId = useChatStore(state => state.setSelectedModelId);
+
     const [isChatModeOpen, setIsChatModeOpen] = useState(false);
-    const hasApiKeyForChatMode = useApiKeysStore(state => state.hasApiKeyForChatMode);
     const isChatPage = usePathname().startsWith('/chat');
+
+    const configs = getProviderConfigs();
+    const activeConfigs = configs.filter(c => c.enabled);
+    const currentProvider = activeConfigs.find(c => c.id === selectedProviderId);
 
     const selectedOption =
         (isChatPage
@@ -152,13 +162,30 @@ export const ChatModeButton = () => {
     return (
         <DropdownMenu open={isChatModeOpen} onOpenChange={setIsChatModeOpen}>
             <DropdownMenuTrigger asChild>
-                <Button variant={'secondary'} size="xs">
-                    {selectedOption?.icon}
-                    {selectedOption?.label}
+                <Button variant={'secondary'} size="xs" className="font-sans">
+                    {selectedProviderId && selectedModelId ? (
+                        <>
+                            <IconPlug size={14} className="text-blue-500 mr-1 animate-pulse" />
+                            <span className="capitalize">{currentProvider?.name || selectedProviderId}</span>: {selectedModelId}
+                        </>
+                    ) : (
+                        <>
+                            {selectedOption?.icon}
+                            {selectedOption?.label}
+                        </>
+                    )}
                     <IconChevronDown size={14} strokeWidth={2} />
                 </Button>
             </DropdownMenuTrigger>
-            <ChatModeOptions chatMode={chatMode} setChatMode={setChatMode} />
+            <ChatModeOptions
+                chatMode={chatMode}
+                setChatMode={setChatMode}
+                selectedProviderId={selectedProviderId}
+                selectedModelId={selectedModelId}
+                setSelectedProviderId={setSelectedProviderId}
+                setSelectedModelId={setSelectedModelId}
+                activeConfigs={activeConfigs}
+            />
         </DropdownMenu>
     );
 };
@@ -213,11 +240,19 @@ export const GeneratingStatus = () => {
 export const ChatModeOptions = ({
     chatMode,
     setChatMode,
-    isRetry = false,
+    selectedProviderId,
+    selectedModelId,
+    setSelectedProviderId,
+    setSelectedModelId,
+    activeConfigs,
 }: {
     chatMode: ChatMode;
     setChatMode: (chatMode: ChatMode) => void;
-    isRetry?: boolean;
+    selectedProviderId: string | null;
+    selectedModelId: string | null;
+    setSelectedProviderId: (id: string | null) => void;
+    setSelectedModelId: (id: string | null) => void;
+    activeConfigs: any[];
 }) => {
     const isSignedIn = true;
     const hasApiKeyForChatMode = useApiKeysStore(state => state.hasApiKeyForChatMode);
@@ -227,7 +262,7 @@ export const ChatModeOptions = ({
         <DropdownMenuContent
             align="start"
             side="bottom"
-            className="no-scrollbar max-h-[300px] w-[300px] overflow-y-auto"
+            className="no-scrollbar max-h-[350px] w-[300px] overflow-y-auto"
         >
             {isChatPage && (
                 <DropdownMenuGroup>
@@ -240,6 +275,8 @@ export const ChatModeOptions = ({
                                     push('/sign-in');
                                     return;
                                 }
+                                setSelectedProviderId(null);
+                                setSelectedModelId(null);
                                 setChatMode(option.value);
                             }}
                             className="h-auto"
@@ -262,31 +299,75 @@ export const ChatModeOptions = ({
                     ))}
                 </DropdownMenuGroup>
             )}
-            <DropdownMenuGroup>
-                <DropdownMenuLabel>Models</DropdownMenuLabel>
-                {modelOptions.map(option => (
-                    <DropdownMenuItem
-                        key={option.label}
-                        onSelect={() => {
-                            if (ChatModeConfig[option.value]?.isAuthRequired && !isSignedIn) {
-                                push('/sign-in');
-                                return;
-                            }
-                            setChatMode(option.value);
-                        }}
-                        className="h-auto"
-                    >
-                        <div className="flex w-full flex-row items-center gap-2.5 px-1.5 py-1.5">
-                            <div className="flex flex-col gap-0">
-                                {<p className="text-sm font-medium">{option.label}</p>}
-                            </div>
-                            <div className="flex-1" />
-                            {ChatModeConfig[option.value]?.isNew && <NewIcon />}
 
-                            {hasApiKeyForChatMode(option.value) && <BYOKIcon />}
+            {activeConfigs.length > 0 && (
+                <DropdownMenuGroup>
+                    <DropdownMenuLabel>Custom BYOK Providers</DropdownMenuLabel>
+                    {activeConfigs.map(provider => (
+                        <div key={provider.id} className="border-b border-border/40 last:border-0 pb-1">
+                            <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider capitalize">
+                                {provider.name}
+                            </div>
+                            {provider.models.map((modelId: string) => {
+                                const isSelected = selectedProviderId === provider.id && selectedModelId === modelId;
+                                return (
+                                    <DropdownMenuItem
+                                        key={modelId}
+                                        onSelect={() => {
+                                            setSelectedProviderId(provider.id);
+                                            setSelectedModelId(modelId);
+                                        }}
+                                        className="h-auto"
+                                    >
+                                        <div className="flex w-full flex-row items-center gap-2.5 px-1.5 py-1">
+                                            <div className="flex flex-col gap-0">
+                                                <p className={cn("text-sm font-medium", isSelected && "text-blue-500")}>
+                                                    {modelId}
+                                                </p>
+                                            </div>
+                                            <div className="flex-1" />
+                                            {isSelected && <span className="text-blue-500 text-xs font-semibold mr-1">Active</span>}
+                                            <BYOKIcon />
+                                        </div>
+                                    </DropdownMenuItem>
+                                );
+                            })}
                         </div>
-                    </DropdownMenuItem>
-                ))}
+                    ))}
+                </DropdownMenuGroup>
+            )}
+
+            <DropdownMenuGroup>
+                <DropdownMenuLabel>Default Models</DropdownMenuLabel>
+                {modelOptions.map(option => {
+                    const isSelected = !selectedProviderId && chatMode === option.value;
+                    return (
+                        <DropdownMenuItem
+                            key={option.label}
+                            onSelect={() => {
+                                if (ChatModeConfig[option.value]?.isAuthRequired && !isSignedIn) {
+                                    push('/sign-in');
+                                    return;
+                                }
+                                setSelectedProviderId(null);
+                                setSelectedModelId(null);
+                                setChatMode(option.value);
+                            }}
+                            className="h-auto"
+                        >
+                            <div className="flex w-full flex-row items-center gap-2.5 px-1.5 py-1.5">
+                                <div className="flex flex-col gap-0">
+                                    <p className={cn("text-sm font-medium", isSelected && "text-blue-500")}>{option.label}</p>
+                                </div>
+                                <div className="flex-1" />
+                                {isSelected && <span className="text-blue-500 text-xs font-semibold mr-1">Active</span>}
+                                {ChatModeConfig[option.value]?.isNew && <NewIcon />}
+
+                                {hasApiKeyForChatMode(option.value) && <BYOKIcon />}
+                            </div>
+                        </DropdownMenuItem>
+                    );
+                })}
             </DropdownMenuGroup>
         </DropdownMenuContent>
     );

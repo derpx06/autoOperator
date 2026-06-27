@@ -77,6 +77,7 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
         if (typeof window === 'undefined') return;
 
         if (!workerRef.current) {
+            // @ts-ignore
             workerRef.current = new Worker(new URL('./worker.ts', import.meta.url), {
                 type: 'module',
             });
@@ -110,6 +111,10 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
         config,
         apiKeys,
         mcpConfig,
+        selectedProviderId,
+        selectedModelId,
+        apiKey,
+        baseUrl,
     }: {
         mode: ChatMode;
         question: string;
@@ -121,6 +126,10 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
         config?: WorkflowConfig;
         apiKeys?: Record<string, string>;
         mcpConfig?: Record<string, string>;
+        selectedProviderId?: string;
+        selectedModelId?: string;
+        apiKey?: string;
+        baseUrl?: string;
     }) => {
         // Reset state
         setError(null);
@@ -133,6 +142,7 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
 
             // Ensure worker exists
             if (!workerRef.current) {
+                // @ts-ignore
                 workerRef.current = new Worker(new URL('./worker.ts', import.meta.url), {
                     type: 'module',
                 });
@@ -160,6 +170,10 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
                     config,
                     apiKeys: apiKeys || {},
                     mcpConfig,
+                    selectedProviderId,
+                    selectedModelId,
+                    apiKey,
+                    baseUrl,
                 },
             });
 

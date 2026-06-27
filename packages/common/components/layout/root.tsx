@@ -1,7 +1,6 @@
 'use client';
 import {
     CommandSearch,
-    FeedbackWidget,
     IntroDialog,
     SettingsModal,
     Sidebar,
@@ -47,7 +46,7 @@ export const RootLayout: FC<TRootLayout> = ({ children }) => {
             </div>
 
             {/* Desktop sidebar */}
-            <Flex className="hidden lg:flex">
+            <Flex className="hidden lg:flex h-full">
                 <AnimatePresence>
                     {isSidebarOpen && (
                         <motion.div
@@ -56,6 +55,7 @@ export const RootLayout: FC<TRootLayout> = ({ children }) => {
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -16 }}
                             transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                            className="h-full flex flex-col"
                         >
                             <Sidebar />
                         </motion.div>
@@ -97,7 +97,6 @@ export const RootLayout: FC<TRootLayout> = ({ children }) => {
                                 </div>
                             </div>
                             <SideDrawer />
-                            <FeedbackWidget />
                             <IntroDialog />
                         </div>
                     </AgentProvider>

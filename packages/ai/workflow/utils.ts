@@ -10,7 +10,7 @@ import {
 import { format } from 'date-fns';
 import { ZodSchema } from 'zod';
 import { ModelEnum } from '../models';
-import { getLanguageModel } from '../providers';
+import { getLanguageModel, getCustomLanguageModel } from '../providers';
 import { WorkflowEventSchema } from './flow';
 import { generateErrorMessage } from './tasks/utils';
 
@@ -71,6 +71,10 @@ export const generateText = async ({
     signal,
     toolChoice = 'auto',
     maxSteps = 2,
+    selectedProviderId,
+    selectedModelId,
+    apiKey,
+    baseUrl,
 }: {
     prompt: string;
     model: ModelEnum;
@@ -83,6 +87,10 @@ export const generateText = async ({
     signal?: AbortSignal;
     toolChoice?: 'auto' | 'none' | 'required';
     maxSteps?: number;
+    selectedProviderId?: string;
+    selectedModelId?: string;
+    apiKey?: string;
+    baseUrl?: string;
 }) => {
     try {
         if (signal?.aborted) {
@@ -94,7 +102,9 @@ export const generateText = async ({
             separator: '\n',
         });
 
-        const selectedModel = getLanguageModel(model, middleware);
+        const selectedModel = selectedProviderId && selectedModelId
+            ? getCustomLanguageModel(selectedProviderId, selectedModelId, apiKey, baseUrl, middleware)
+            : getLanguageModel(model, middleware);
         const { fullStream } = !!messages?.length
             ? streamText({
                   system: prompt,
@@ -154,19 +164,29 @@ export const generateObject = async ({
     schema,
     messages,
     signal,
+    selectedProviderId,
+    selectedModelId,
+    apiKey,
+    baseUrl,
 }: {
     prompt: string;
     model: ModelEnum;
     schema: ZodSchema;
     messages?: CoreMessage[];
     signal?: AbortSignal;
+    selectedProviderId?: string;
+    selectedModelId?: string;
+    apiKey?: string;
+    baseUrl?: string;
 }) => {
     try {
         if (signal?.aborted) {
             throw new Error('Operation aborted');
         }
 
-        const selectedModel = getLanguageModel(model);
+        const selectedModel = selectedProviderId && selectedModelId
+            ? getCustomLanguageModel(selectedProviderId, selectedModelId, apiKey, baseUrl)
+            : getLanguageModel(model);
         const { object } = !!messages?.length
             ? await generateObjectAi({
                   system: prompt,

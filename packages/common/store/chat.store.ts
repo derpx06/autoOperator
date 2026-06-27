@@ -47,6 +47,14 @@ const loadInitialData = async () => {
 
     const initialThreads = threads.length ? threads : [];
 
+    // Load Provider Hub selections
+    let selectedProviderId: string | null = null;
+    let selectedModelId: string | null = null;
+    if (typeof window !== 'undefined') {
+        selectedProviderId = sessionStorage.getItem('byok-session-provider') || localStorage.getItem('byok-default-provider') || 'google';
+        selectedModelId = sessionStorage.getItem('byok-session-model') || localStorage.getItem('byok-default-model') || 'gemini-2.0-flash';
+    }
+
     return {
         threads: initialThreads.sort((a, b) => b.createdAt?.getTime() - a.createdAt?.getTime()),
         currentThreadId: config.currentThreadId || initialThreads[0]?.id,
@@ -55,6 +63,8 @@ const loadInitialData = async () => {
         chatMode,
         customInstructions,
         showSuggestions: config.showSuggestions ?? true,
+        selectedProviderId,
+        selectedModelId,
     };
 };
 
@@ -86,6 +96,8 @@ type State = {
         isAuthenticated: boolean;
         isFetched: boolean;
     };
+    selectedProviderId: string | null;
+    selectedModelId: string | null;
 };
 
 type Actions = {
@@ -122,6 +134,8 @@ type Actions = {
     setCurrentSources: (sources: string[]) => void;
     setUseWebSearch: (useWebSearch: boolean) => void;
     setShowSuggestions: (showSuggestions: boolean) => void;
+    setSelectedProviderId: (id: string | null) => void;
+    setSelectedModelId: (modelId: string | null) => void;
 };
 
 // Add these utility functions at the top level
@@ -235,6 +249,7 @@ const initializeWorker = () => {
 
     try {
         // Create a shared worker
+        // @ts-ignore
         dbWorker = new SharedWorker(new URL('./db-sync.worker.ts', import.meta?.url), {
             type: 'module',
         });
@@ -461,6 +476,28 @@ export const useChatStore = create(
             isFetched: false,
         },
         showSuggestions: true,
+        selectedProviderId: null,
+        selectedModelId: null,
+
+        setSelectedProviderId: (id: string | null) => {
+            if (typeof window !== 'undefined') {
+                if (id) sessionStorage.setItem('byok-session-provider', id || '');
+                else sessionStorage.removeItem('byok-session-provider');
+            }
+            set(state => {
+                state.selectedProviderId = id;
+            });
+        },
+
+        setSelectedModelId: (modelId: string | null) => {
+            if (typeof window !== 'undefined') {
+                if (modelId) sessionStorage.setItem('byok-session-model', modelId || '');
+                else sessionStorage.removeItem('byok-session-model');
+            }
+            set(state => {
+                state.selectedModelId = modelId;
+            });
+        },
 
         setCustomInstructions: (customInstructions: string) => {
             const existingConfig = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
@@ -934,6 +971,8 @@ if (typeof window !== 'undefined') {
             useWebSearch,
             showSuggestions,
             customInstructions,
+            selectedProviderId,
+            selectedModelId,
         }) => {
             useChatStore.setState({
                 threads,
@@ -943,6 +982,8 @@ if (typeof window !== 'undefined') {
                 useWebSearch,
                 showSuggestions,
                 customInstructions,
+                selectedProviderId,
+                selectedModelId,
             });
 
             // Initialize the shared worker for tab synchronization

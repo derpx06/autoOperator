@@ -7,6 +7,8 @@ import { ThreadItem } from '@repo/shared/types';
 import { Button, DropdownMenu, DropdownMenuTrigger } from '@repo/ui';
 import { IconCheck, IconCopy, IconMarkdown, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { forwardRef, useState } from 'react';
+import { getProviderConfigs } from '@repo/ai/providers';
+
 type MessageActionsProps = {
     threadItem: ThreadItem;
     isLast: boolean;
@@ -18,6 +20,12 @@ export const MessageActions = forwardRef<HTMLDivElement, MessageActionsProps>(
         const removeThreadItem = useChatStore(state => state.deleteThreadItem);
         const getThreadItems = useChatStore(state => state.getThreadItems);
         const useWebSearch = useChatStore(state => state.useWebSearch);
+        const selectedProviderId = useChatStore(state => state.selectedProviderId);
+        const selectedModelId = useChatStore(state => state.selectedModelId);
+        const setSelectedProviderId = useChatStore(state => state.setSelectedProviderId);
+        const setSelectedModelId = useChatStore(state => state.setSelectedModelId);
+        const activeConfigs = getProviderConfigs().filter(c => c.enabled);
+
         const [chatMode, setChatMode] = useState<ChatMode>(threadItem.mode);
         const { copyToClipboard, status, copyMarkdown, markdownCopyStatus } = useCopyText();
         return (
@@ -83,6 +91,11 @@ export const MessageActions = forwardRef<HTMLDivElement, MessageActionsProps>(
                                     useWebSearch: useWebSearch,
                                 });
                             }}
+                            selectedProviderId={selectedProviderId}
+                            selectedModelId={selectedModelId}
+                            setSelectedProviderId={setSelectedProviderId}
+                            setSelectedModelId={setSelectedModelId}
+                            activeConfigs={activeConfigs}
                         />
                     </DropdownMenu>
                 )}

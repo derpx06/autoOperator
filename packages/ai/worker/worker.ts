@@ -1,5 +1,6 @@
 import { ChatMode } from '@repo/shared/config';
 import { runWorkflow } from '../workflow/flow';
+import { runWithRequestContext } from '../providers/request-context';
 // Create context for the worker
 const ctx: Worker = self as any;
 
@@ -57,20 +58,33 @@ ctx.addEventListener('message', async (event: MessageEvent) => {
                 self.NEXT_PUBLIC_APP_URL = apiKeys.NEXT_PUBLIC_APP_URL;
             }
 
+            const reqContext = {
+                selectedProviderId: payload.selectedProviderId,
+                selectedModelId: payload.selectedModelId,
+                apiKey: payload.apiKey,
+                baseUrl: payload.baseUrl,
+            };
+
             // Initialize the workflow
-            activeWorkflow = runWorkflow({
-                mode,
-                question,
-                threadId,
-                threadItemId,
-                messages,
-                config,
-                mcpConfig,
-                onFinish: (data: any) => {},
+            activeWorkflow = runWithRequestContext(reqContext, () => {
+                return runWorkflow({
+                    mode,
+                    question,
+                    threadId,
+                    threadItemId,
+                    messages,
+                    config,
+                    mcpConfig,
+                    selectedProviderId: payload.selectedProviderId,
+                    selectedModelId: payload.selectedModelId,
+                    apiKey: payload.apiKey,
+                    baseUrl: payload.baseUrl,
+                    onFinish: (data: any) => {},
+                });
             });
 
             // Forward workflow events to the main thread
-            activeWorkflow.onAll((event, payload) => {
+            activeWorkflow.onAll((event, payloadEvent) => {
                 ctx.postMessage({
                     event: event,
                     threadId,
@@ -78,14 +92,16 @@ ctx.addEventListener('message', async (event: MessageEvent) => {
                     parentThreadItemId,
                     mode,
                     query: question,
-                    [event]: payload,
+                    [event]: payloadEvent,
                 });
             });
 
             // Start the workflow with the appropriate task
             const startTask = mode === ChatMode.Deep ? 'router' : 'router';
-            const result = await activeWorkflow.start(startTask, {
-                question,
+            const result = await runWithRequestContext(reqContext, () => {
+                return activeWorkflow!.start(startTask, {
+                    question,
+                });
             });
 
             // Send completion message

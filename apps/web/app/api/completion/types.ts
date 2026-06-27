@@ -7,12 +7,16 @@ export const completionRequestSchema = z.object({
     parentThreadItemId: z.string(),
     prompt: z.string(),
     messages: z.any(),
-    mode: z.nativeEnum(ChatMode),
+    mode: z.nativeEnum(ChatMode).optional(),
     maxIterations: z.number().optional(),
     mcpConfig: z.record(z.string(), z.string()).optional(),
     webSearch: z.boolean().optional(),
     showSuggestions: z.boolean().optional(),
     customInstructions: z.string().optional(),
+    selectedProviderId: z.string().optional(),
+    selectedModelId: z.string().optional(),
+    apiKey: z.string().optional(),
+    baseUrl: z.string().optional(),
 });
 
 export type CompletionRequestType = z.infer<typeof completionRequestSchema>;

@@ -6,7 +6,7 @@ import { nanoid } from 'nanoid';
 import { useParams, useRouter } from 'next/navigation';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo } from 'react';
 import { useApiKeysStore, useAppStore, useChatStore, useMcpToolsStore } from '../store';
-
+import { getProviderConfig } from '@repo/ai/providers';
 export type AgentContextType = {
     runAgent: (body: any) => Promise<void>;
     handleSubmit: (args: {
@@ -399,7 +399,23 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                 imageAttachment,
             });
 
-            if (hasApiKeyForChatMode(mode)) {
+            const selectedProviderId = useChatStore.getState().selectedProviderId;
+            const selectedModelId = useChatStore.getState().selectedModelId;
+            let providerApiKey: string | undefined = undefined;
+            let providerBaseUrl: string | undefined = undefined;
+
+            if (selectedProviderId) {
+                const config = getProviderConfig(selectedProviderId);
+                if (config) {
+                    providerApiKey = config.apiKey;
+                    providerBaseUrl = config.baseUrl;
+                }
+            }
+
+            const isLocalProvider = selectedProviderId === 'ollama';
+            const runClientSide = isLocalProvider || (!selectedProviderId && hasApiKeyForChatMode(mode));
+
+            if (runClientSide) {
                 const abortController = new AbortController();
                 setAbortController(abortController);
                 setIsGenerating(true);
@@ -421,6 +437,10 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                     parentThreadItemId: '',
                     customInstructions,
                     apiKeys: apiKeys(),
+                    selectedProviderId: selectedProviderId || undefined,
+                    selectedModelId: selectedModelId || undefined,
+                    apiKey: providerApiKey || undefined,
+                    baseUrl: providerBaseUrl || undefined,
                 });
             } else {
                 runAgent({
@@ -434,6 +454,10 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                     parentThreadItemId: '',
                     webSearch: useWebSearch,
                     showSuggestions: showSuggestions ?? true,
+                    selectedProviderId: selectedProviderId || undefined,
+                    selectedModelId: selectedModelId || undefined,
+                    apiKey: providerApiKey || undefined,
+                    baseUrl: providerBaseUrl || undefined,
                 });
             }
         },
