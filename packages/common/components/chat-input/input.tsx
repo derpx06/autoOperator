@@ -1,5 +1,4 @@
 'use client';
-import { useAuth } from '@clerk/nextjs';
 import {
     ImageAttachment,
     ImageDropzoneRoot,
@@ -30,7 +29,7 @@ export const ChatInput = ({
     showBottomBar?: boolean;
     isFollowUp?: boolean;
 }) => {
-    const { isSignedIn } = useAuth();
+    const isSignedIn = true;
 
     const { threadId: currentThreadId } = useParams();
     const { editor } = useChatEditor({

@@ -1,5 +1,4 @@
 'use client';
-import { useUser } from '@clerk/nextjs';
 import { DotSpinner } from '@repo/common/components';
 import { useApiKeysStore, useChatStore } from '@repo/common/store';
 import { CHAT_MODE_CREDIT_COSTS, ChatMode, ChatModeConfig } from '@repo/shared/config';
@@ -220,7 +219,7 @@ export const ChatModeOptions = ({
     setChatMode: (chatMode: ChatMode) => void;
     isRetry?: boolean;
 }) => {
-    const { isSignedIn } = useUser();
+    const isSignedIn = true;
     const hasApiKeyForChatMode = useApiKeysStore(state => state.hasApiKeyForChatMode);
     const isChatPage = usePathname().startsWith('/chat');
     const { push } = useRouter();
