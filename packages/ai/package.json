@@ -12,6 +12,7 @@
         "./tools": "./tools/index.ts",
         "./workflow": "./workflow/flow.ts",
         "./worker": "./worker/index.ts",
+        "./memory": "./memory/index.ts",
         "./providers": "./providers/index.ts"
     },
     "dependencies": {

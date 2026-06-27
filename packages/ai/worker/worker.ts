@@ -39,6 +39,7 @@ ctx.addEventListener('message', async (event: MessageEvent) => {
                 config,
                 apiKeys: newApiKeys,
                 mcpConfig,
+                memories,
             } = payload;
 
             // Set API keys if provided
@@ -75,6 +76,7 @@ ctx.addEventListener('message', async (event: MessageEvent) => {
                     messages,
                     config,
                     mcpConfig,
+                    memories,
                     selectedProviderId: payload.selectedProviderId,
                     selectedModelId: payload.selectedModelId,
                     apiKey: payload.apiKey,

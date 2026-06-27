@@ -8,6 +8,8 @@ import { ChatMode } from '@repo/shared/config';
 import { Geo } from '@vercel/functions';
 import { CoreMessage } from 'ai';
 import { Langfuse } from 'langfuse';
+import { MemoryContextItem } from '../memory';
+import { MCPServerConfig } from '../tools';
 import {
     analysisTask,
     completionTask,
@@ -68,7 +70,8 @@ export type WorkflowEventSchema = {
 
 // Define the context schema type
 export type WorkflowContextSchema = {
-    mcpConfig: Record<string, string>;
+    mcpConfig: Record<string, string> | MCPServerConfig[];
+    memories?: MemoryContextItem[];
     question: string;
     search_queries: string[];
     messages: CoreMessage[];
@@ -112,6 +115,7 @@ export type WorkflowContextSchema = {
 
 export const runWorkflow = ({
     mcpConfig = {},
+    memories = [],
     mode,
     question,
     threadId,
@@ -129,7 +133,8 @@ export const runWorkflow = ({
     apiKey,
     baseUrl,
 }: {
-    mcpConfig: Record<string, string>;
+    mcpConfig: Record<string, string> | MCPServerConfig[];
+    memories?: MemoryContextItem[];
     mode: ChatMode;
     question: string;
     threadId: string;
@@ -181,6 +186,7 @@ export const runWorkflow = ({
 
     const context = createContext<WorkflowContextSchema>({
         mcpConfig,
+        memories,
         question,
         mode,
         webSearch,

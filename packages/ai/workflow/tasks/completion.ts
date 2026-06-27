@@ -3,6 +3,7 @@ import { buildAllTools } from '../../tools/mcp';
 import { getModelFromChatMode } from '../../models';
 import { WorkflowContextSchema, WorkflowEventSchema } from '../flow';
 import { ChunkBuffer, generateText, getHumanizedDate, handleError } from '../utils';
+import { buildMemoryPromptSection } from '../../memory';
 
 const MAX_ALLOWED_CUSTOM_INSTRUCTIONS_LENGTH = 6000;
 
@@ -17,6 +18,7 @@ export const completionTask = createTask<WorkflowEventSchema, WorkflowContextSch
         const mode = context.get('mode');
         const webSearch = context.get('webSearch') || false;
         const mcpConfig = context.get('mcpConfig') || {};
+        const memories = context.get('memories') || [];
 
         let messages =
             context
@@ -49,6 +51,7 @@ export const completionTask = createTask<WorkflowEventSchema, WorkflowContextSch
 
         let prompt = `You are a helpful assistant that can answer questions and help with tasks.
         Today is ${getHumanizedDate()}.
+        ${buildMemoryPromptSection(memories)}
         `;
 
         // Resolve MCP tools if any servers are configured
@@ -57,9 +60,11 @@ export const completionTask = createTask<WorkflowEventSchema, WorkflowContextSch
         const appUrl = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_APP_URL)
             || (typeof self !== 'undefined' && (self as any).NEXT_PUBLIC_APP_URL)
             || '';
-        const hasMcpServers = Object.keys(mcpConfig).length > 0;
+        const hasMcpServers = Array.isArray(mcpConfig)
+            ? mcpConfig.some(server => server.enabled !== false && !!server.url)
+            : Object.keys(mcpConfig).length > 0;
 
-        if (hasMcpServers && appUrl) {
+        if (hasMcpServers) {
             try {
                 const mcpResult = await buildAllTools({
                     proxyEndpoint: `${appUrl}/api/mcp/proxy`,

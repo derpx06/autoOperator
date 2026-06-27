@@ -1,14 +1,49 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { jsonSchema, tool, ToolSet } from 'ai';
 
+export type MCPTransportType = 'sse' | 'streamable-http';
 
+export type MCPServerConfig = {
+        id: string;
+        name: string;
+        title: string;
+        url: string;
+        transport: MCPTransportType;
+        enabled: boolean;
+        source: 'manual' | 'registry';
+        headers?: Record<string, string>;
+        variables?: Record<string, string>;
+        registryName?: string;
+        registryVersion?: string;
+        description?: string;
+        toolCount?: number;
+        lastTestedAt?: number;
+};
 
 export type MCPServersConfig = {
         proxyEndpoint: string,
-        mcpServers: Record<string,  string>
+        mcpServers: Record<string, string> | MCPServerConfig[]
 };
 
+const normalizeMcpServers = (mcpServers: MCPServersConfig['mcpServers']): MCPServerConfig[] => {
+        if (Array.isArray(mcpServers)) {
+                return mcpServers.filter(server => server.enabled !== false && !!server.url);
+        }
+
+        return Object.entries(mcpServers)
+                .filter(([, url]) => !!url)
+                .map(([name, url]) => ({
+                        id: name,
+                        name,
+                        title: name,
+                        url,
+                        transport: 'sse' as const,
+                        enabled: true,
+                        source: 'manual' as const,
+                }));
+};
 
 async function getMcpClients(config: MCPServersConfig): Promise<Client[]> {
         const clients: Client[] = [];
@@ -21,16 +56,16 @@ async function getMcpClients(config: MCPServersConfig): Promise<Client[]> {
                 console.warn(`Failed to ping proxy endpoint: ${config.proxyEndpoint}`, error);
         }
 
-        for (const key in config.mcpServers) {
-                const baseUrl = config.mcpServers[key];
+        for (const server of normalizeMcpServers(config.mcpServers)) {
+                const baseUrl = server.url;
                 const proxyEndpoint = config.proxyEndpoint;
 
-                console.log(`Creating MCP client for ${key} with URL: ${baseUrl}`);
+                console.log(`Creating MCP client for ${server.name} with URL: ${baseUrl}`);
                 
                 // The SSE transport will append /sse to baseUrl if needed
                 const client = new Client(
                         {
-                                name: key,
+                                name: server.name,
                                 version: '0.1.0',
                                 baseUrl: baseUrl,
                                 proxyUrl: proxyEndpoint,
@@ -46,14 +81,20 @@ async function getMcpClients(config: MCPServersConfig): Promise<Client[]> {
 
                 try {
                         console.log(`Connecting to ${baseUrl}`);
-                        await client.connect(new SSEClientTransport(new URL(`${proxyEndpoint}?server=${baseUrl}`), {
-                                requestInit: {
-                                        headers: {
-                                                'x-base-url': baseUrl,
+                        const headers = server.headers || {};
+                        const transport = server.transport === 'streamable-http'
+                                ? new StreamableHTTPClientTransport(new URL(baseUrl), {
+                                        requestInit: { headers },
+                                })
+                                : new SSEClientTransport(new URL(`${proxyEndpoint}?server=${encodeURIComponent(baseUrl)}`), {
+                                        requestInit: {
+                                                headers: {
+                                                        ...headers,
+                                                        'x-base-url': baseUrl,
+                                                },
                                         },
-                                },
-
-                        }));
+                                });
+                        await client.connect(transport);
                         console.log(`Successfully connected to ${baseUrl}`);
                         clients.push(client);
                 } catch (error) {

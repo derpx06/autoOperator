@@ -26,7 +26,7 @@ import {
 import { getProviderConfigs } from '@repo/ai/providers';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BYOKIcon, NewIcon } from '../icons';
 
 export const chatOptions = [
@@ -151,13 +151,25 @@ export const ChatModeButton = () => {
     const isChatPage = usePathname().startsWith('/chat');
 
     const configs = getProviderConfigs();
-    const activeConfigs = configs.filter(c => c.enabled);
+    const activeConfigs = configs.filter(c => c.enabled && c.models?.length > 0);
     const currentProvider = activeConfigs.find(c => c.id === selectedProviderId);
 
     const selectedOption =
         (isChatPage
             ? [...chatOptions, ...modelOptions].find(option => option.value === chatMode)
             : [...modelOptions].find(option => option.value === chatMode)) ?? modelOptions[0];
+
+    useEffect(() => {
+        if (selectedProviderId && currentProvider) return;
+        const firstProvider = activeConfigs[0];
+        if (!firstProvider) {
+            if (selectedProviderId) setSelectedProviderId(null);
+            if (selectedModelId) setSelectedModelId(null);
+            return;
+        }
+        setSelectedProviderId(firstProvider.id);
+        setSelectedModelId(firstProvider.defaultModel || firstProvider.models[0]);
+    }, [activeConfigs, currentProvider, selectedModelId, selectedProviderId, setSelectedModelId, setSelectedProviderId]);
 
     return (
         <DropdownMenu open={isChatModeOpen} onOpenChange={setIsChatModeOpen}>
@@ -255,7 +267,6 @@ export const ChatModeOptions = ({
     activeConfigs: any[];
 }) => {
     const isSignedIn = true;
-    const hasApiKeyForChatMode = useApiKeysStore(state => state.hasApiKeyForChatMode);
     const isChatPage = usePathname().startsWith('/chat');
     const { push } = useRouter();
     return (
@@ -302,7 +313,7 @@ export const ChatModeOptions = ({
 
             {activeConfigs.length > 0 && (
                 <DropdownMenuGroup>
-                    <DropdownMenuLabel>Custom BYOK Providers</DropdownMenuLabel>
+                    <DropdownMenuLabel>Enabled Providers</DropdownMenuLabel>
                     {activeConfigs.map(provider => (
                         <div key={provider.id} className="border-b border-border/40 last:border-0 pb-1">
                             <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider capitalize">
@@ -336,39 +347,6 @@ export const ChatModeOptions = ({
                     ))}
                 </DropdownMenuGroup>
             )}
-
-            <DropdownMenuGroup>
-                <DropdownMenuLabel>Default Models</DropdownMenuLabel>
-                {modelOptions.map(option => {
-                    const isSelected = !selectedProviderId && chatMode === option.value;
-                    return (
-                        <DropdownMenuItem
-                            key={option.label}
-                            onSelect={() => {
-                                if (ChatModeConfig[option.value]?.isAuthRequired && !isSignedIn) {
-                                    push('/sign-in');
-                                    return;
-                                }
-                                setSelectedProviderId(null);
-                                setSelectedModelId(null);
-                                setChatMode(option.value);
-                            }}
-                            className="h-auto"
-                        >
-                            <div className="flex w-full flex-row items-center gap-2.5 px-1.5 py-1.5">
-                                <div className="flex flex-col gap-0">
-                                    <p className={cn("text-sm font-medium", isSelected && "text-blue-500")}>{option.label}</p>
-                                </div>
-                                <div className="flex-1" />
-                                {isSelected && <span className="text-blue-500 text-xs font-semibold mr-1">Active</span>}
-                                {ChatModeConfig[option.value]?.isNew && <NewIcon />}
-
-                                {hasApiKeyForChatMode(option.value) && <BYOKIcon />}
-                            </div>
-                        </DropdownMenuItem>
-                    );
-                })}
-            </DropdownMenuGroup>
         </DropdownMenuContent>
     );
 };

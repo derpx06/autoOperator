@@ -21,7 +21,7 @@ import { ToolIcon } from './icons';
 
 export const ToolsMenu = () => {
     const [isOpen, setIsOpen] = useState(false);
-    const { mcpConfig, updateSelectedMCP, selectedMCP } = useMcpToolsStore();
+    const { servers, updateSelectedMCP, selectedMCP } = useMcpToolsStore();
     const apiKeys = useApiKeysStore();
     const chatMode = useChatStore(state => state.chatMode);
     const hasApiKeyForChatMode = useApiKeysStore(state => state.hasApiKeyForChatMode);
@@ -33,8 +33,8 @@ export const ToolsMenu = () => {
     );
 
     const selectedMCPTools = useMemo(() => {
-        return Object.keys(mcpConfig).filter(key => mcpConfig[key]);
-    }, [mcpConfig]);
+        return servers.filter(server => selectedMCP.includes(server.id));
+    }, [servers, selectedMCP]);
 
     return (
         <>
@@ -60,29 +60,29 @@ export const ToolsMenu = () => {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" side="bottom" className="w-[320px]">
-                    {Object.keys(mcpConfig).map(key => (
+                    {servers.map(server => (
                         <DropdownMenuItem
-                            key={key}
+                            key={server.id}
                             onClick={() =>
                                 updateSelectedMCP(prev => {
-                                    if (prev.includes(key)) {
-                                        return prev.filter(mcp => mcp !== key);
+                                    if (prev.includes(server.id)) {
+                                        return prev.filter(mcp => mcp !== server.id);
                                     }
-                                    return [...prev, key];
+                                    return [...prev, server.id];
                                 })
                             }
                         >
                             <div className="flex w-full items-center justify-between gap-2">
                                 <ToolIcon />
-                                <span>{key}</span>
+                                <span>{server.title || server.name}</span>
                                 <div className="flex-1" />
-                                {selectedMCP.includes(key) && (
+                                {selectedMCP.includes(server.id) && (
                                     <IconCheck size={16} className="text-foreground" />
                                 )}
                             </div>
                         </DropdownMenuItem>
                     ))}
-                    {mcpConfig && Object.keys(mcpConfig).length === 0 && (
+                    {servers.length === 0 && (
                         <div className="flex h-[150px] flex-col items-center justify-center gap-2">
                             <IconTools
                                 size={16}
@@ -108,8 +108,8 @@ export const ToolsMenu = () => {
                             </Button>
                         </div>
                     )}
-                    {mcpConfig && Object.keys(mcpConfig).length > 0 && <DropdownMenuSeparator />}
-                    {mcpConfig && Object.keys(mcpConfig).length > 0 && (
+                    {servers.length > 0 && <DropdownMenuSeparator />}
+                    {servers.length > 0 && (
                         <DropdownMenuItem
                             onClick={() => {
                                 setIsSettingsOpen(true);

@@ -1,5 +1,5 @@
 'use client';
-import { useMcpToolsStore } from '@repo/common/store';
+import { useMcpToolsStore, useMemoryStore } from '@repo/common/store';
 import { DialogFooter } from '@repo/ui';
 import { Button } from '@repo/ui/src/components/button';
 import { IconKey, IconSettings2, IconTrash } from '@tabler/icons-react';
@@ -8,7 +8,7 @@ import { Badge, Dialog, DialogContent, Input } from '@repo/ui';
 
 import { useChatEditor } from '@repo/common/hooks';
 import { Editor } from '@tiptap/react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SETTING_TABS, useAppStore } from '../store/app.store';
 import { useChatStore } from '../store/chat.store';
 import { ChatEditor } from './chat-input';
@@ -28,6 +28,7 @@ import {
     ProviderType,
     maskApiKey
 } from '@repo/ai/providers';
+import { MCPServerConfig, MCPTransportType } from '@repo/ai/tools';
 import {
     IconCheck,
     IconEye,
@@ -41,7 +42,10 @@ import {
     IconAlertCircle,
     IconChevronDown,
     IconChevronUp,
-    IconStar
+    IconStar,
+    IconBrain,
+    IconDatabase,
+    IconShieldLock
 } from '@tabler/icons-react';
 
 export const SettingsModal = () => {
@@ -62,6 +66,18 @@ export const SettingsModal = () => {
             title: 'Providers',
             key: SETTING_TABS.PROVIDERS,
             component: <ProvidersSettings />,
+        },
+        {
+            icon: <IconPlug size={15} strokeWidth={2} />,
+            title: 'MCP Tools',
+            key: SETTING_TABS.MCP_TOOLS,
+            component: <MCPSettings />,
+        },
+        {
+            icon: <IconBrain size={15} strokeWidth={2} />,
+            title: 'Memory',
+            key: SETTING_TABS.MEMORY,
+            component: <MemorySettings />,
         },
     ];
 
@@ -120,203 +136,542 @@ export const SettingsModal = () => {
 };
 
 export const MCPSettings = () => {
-    const [isAddToolDialogOpen, setIsAddToolDialogOpen] = useState(false);
-    const { mcpConfig, addMcpConfig, removeMcpConfig, updateSelectedMCP, selectedMCP } =
-        useMcpToolsStore();
+    const [search, setSearch] = useState('');
+    const [registryServers, setRegistryServers] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [selectedRegistryServer, setSelectedRegistryServer] = useState<any | null>(null);
+    const [manualName, setManualName] = useState('');
+    const [manualUrl, setManualUrl] = useState('');
+    const [manualTransport, setManualTransport] = useState<MCPTransportType>('streamable-http');
+    const [manualError, setManualError] = useState('');
+    const { servers, addServer, updateServer, removeServer } = useMcpToolsStore();
+
+    useEffect(() => {
+        const controller = new AbortController();
+        setIsSearching(true);
+        const timeout = window.setTimeout(async () => {
+            try {
+                const response = await fetch(
+                    `/api/mcp/registry/search?q=${encodeURIComponent(search)}`,
+                    { signal: controller.signal }
+                );
+                const data = await response.json();
+                setRegistryServers(data.servers || []);
+            } catch (error: any) {
+                if (error.name !== 'AbortError') setRegistryServers([]);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 250);
+
+        return () => {
+            window.clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [search]);
+
+    const connectedNames = useMemo(
+        () => new Set(servers.map(server => server.name.toLowerCase())),
+        [servers]
+    );
+
+    const createManualServer = async () => {
+        const name = manualName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        if (!name) {
+            setManualError('Server name is required');
+            return;
+        }
+        if (!manualUrl.trim()) {
+            setManualError('Server URL is required');
+            return;
+        }
+        if (connectedNames.has(name)) {
+            setManualError('A server with this name already exists');
+            return;
+        }
+
+        addServer({
+            id: name,
+            name,
+            title: manualName.trim(),
+            url: manualUrl.trim(),
+            transport: manualTransport,
+            enabled: true,
+            source: 'manual',
+        });
+        setManualName('');
+        setManualUrl('');
+        setManualError('');
+    };
+
+    const testServer = async (server: MCPServerConfig) => {
+        updateServer(server.id, { lastTestedAt: Date.now() });
+        const response = await fetch('/api/mcp/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ server }),
+        });
+        const result = await response.json();
+        if (result.ok) {
+            updateServer(server.id, {
+                toolCount: result.tools?.length || 0,
+                lastTestedAt: Date.now(),
+            });
+        }
+        return result;
+    };
 
     return (
-        <div className="flex w-full flex-col gap-6 overflow-x-hidden">
+        <div className="flex w-full flex-col gap-6 overflow-x-hidden pb-6">
             <div className="flex flex-col">
                 <h2 className="flex items-center gap-1 text-base font-medium">MCP Tools</h2>
                 <p className="text-muted-foreground text-xs">
-                    Connect your MCP tools. This will only work with your own API keys.
+                    Discover public MCP servers, configure remote connections, and choose which tools are available in chat.
                 </p>
             </div>
+
             <div className="flex flex-col gap-2">
-                <p className="text-muted-foreground text-xs font-medium">
-                    Connected Tools{' '}
-                    <Badge
-                        variant="secondary"
-                        className="text-brand inline-flex items-center gap-1 rounded-full bg-transparent"
-                    >
-                        <span className="bg-brand inline-block size-2 rounded-full"></span>
-                        {mcpConfig && Object.keys(mcpConfig).length} Connected
-                    </Badge>
-                </p>
-                {mcpConfig &&
-                    Object.keys(mcpConfig).length > 0 &&
-                    Object.keys(mcpConfig).map(key => (
-                        <div
-                            key={key}
-                            className="bg-secondary divide-border border-border flex h-12 w-full flex-1 flex-row items-center gap-2 divide-x-2 rounded-xl border px-2.5 py-2"
-                        >
-                            <div className="flex w-full flex-row items-center gap-2">
-                                <ToolIcon /> <Badge>{key}</Badge>
-                                <p className="text-muted-foreground line-clamp-1 flex-1 text-sm">
-                                    {mcpConfig[key]}
-                                </p>
-                                <Button
-                                    size="xs"
-                                    variant="ghost"
-                                    tooltip="Delete Tool"
-                                    onClick={() => {
-                                        removeMcpConfig(key);
-                                    }}
-                                >
-                                    <IconTrash
-                                        size={14}
-                                        strokeWidth={2}
-                                        className="text-muted-foreground"
-                                    />
-                                </Button>
+                <div className="flex items-center justify-between">
+                    <p className="text-muted-foreground text-xs font-medium">Discover Servers</p>
+                    {isSearching && <IconLoader2 size={14} className="animate-spin text-muted-foreground" />}
+                </div>
+                <div className="relative">
+                    <IconSearch size={15} className="text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Input
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Search official MCP registry..."
+                        className="h-9 pl-9 text-sm"
+                    />
+                </div>
+                <div className="flex max-h-[260px] flex-col gap-2 overflow-y-auto pr-1">
+                    {registryServers.slice(0, 12).map(server => {
+                        const remote = server.remotes?.[0];
+                        const addable = !!remote?.url;
+                        return (
+                            <div key={`${server.name}-${server.version}`} className="border-border/70 bg-secondary/20 rounded-xl border p-3">
+                                <div className="flex items-start gap-3">
+                                    <ToolIcon />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <p className="truncate text-sm font-medium">{server.title}</p>
+                                            {remote?.type && <Badge variant="secondary">{remote.type}</Badge>}
+                                            {!addable && <Badge variant="outline">Research only</Badge>}
+                                        </div>
+                                        <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{server.description || server.name}</p>
+                                    </div>
+                                    <Button
+                                        size="xs"
+                                        rounded="full"
+                                        variant={addable ? 'default' : 'bordered'}
+                                        disabled={!addable}
+                                        onClick={() => setSelectedRegistryServer(server)}
+                                    >
+                                        Configure
+                                    </Button>
+                                </div>
                             </div>
+                        );
+                    })}
+                    {!isSearching && registryServers.length === 0 && (
+                        <div className="border-border/70 text-muted-foreground rounded-xl border border-dashed p-5 text-center text-sm">
+                            No registry servers found.
                         </div>
-                    ))}
-
-                <Button
-                    size="sm"
-                    rounded="full"
-                    className="mt-2 self-start"
-                    onClick={() => setIsAddToolDialogOpen(true)}
-                >
-                    Add Tool
-                </Button>
-            </div>
-
-            <div className="mt-6 border-t border-dashed pt-6">
-                <p className="text-muted-foreground text-xs">Learn more about MCP:</p>
-                <div className="mt-2 flex flex-col gap-2 text-sm">
-                    <a
-                        href="https://mcp.composio.dev"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary inline-flex items-center hover:underline"
-                    >
-                        Browse Composio MCP Directory →
-                    </a>
-                    <a
-                        href="https://www.anthropic.com/news/model-context-protocol"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary inline-flex items-center hover:underline"
-                    >
-                        Read MCP Documentation →
-                    </a>
+                    )}
                 </div>
             </div>
 
-            <AddToolDialog
-                isOpen={isAddToolDialogOpen}
-                onOpenChange={setIsAddToolDialogOpen}
-                onAddTool={addMcpConfig}
+            <div className="flex flex-col gap-2">
+                <p className="text-muted-foreground text-xs font-medium">Connected Servers <Badge variant="secondary">{servers.length}</Badge></p>
+                {servers.map(server => (
+                    <div key={server.id} className="border-border/70 bg-secondary/20 rounded-xl border p-3">
+                        <div className="flex items-center gap-2">
+                            <ToolIcon />
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">{server.title || server.name}</p>
+                                <p className="text-muted-foreground truncate text-xs">{server.url}</p>
+                            </div>
+                            <Badge variant="secondary">{server.transport}</Badge>
+                            {typeof server.toolCount === 'number' && <Badge variant="outline">{server.toolCount} tools</Badge>}
+                            <Button
+                                size="xs"
+                                variant={server.enabled ? 'secondary' : 'bordered'}
+                                rounded="full"
+                                onClick={() => updateServer(server.id, { enabled: !server.enabled })}
+                            >
+                                {server.enabled ? 'Enabled' : 'Disabled'}
+                            </Button>
+                            <Button size="xs" variant="ghost" rounded="full" onClick={() => testServer(server)}>
+                                Test
+                            </Button>
+                            <Button size="xs" variant="ghost" tooltip="Delete Server" onClick={() => removeServer(server.id)}>
+                                <IconTrash size={14} strokeWidth={2} />
+                            </Button>
+                        </div>
+                    </div>
+                ))}
+                {servers.length === 0 && (
+                    <div className="border-border/70 text-muted-foreground rounded-xl border border-dashed p-5 text-center text-sm">
+                        No MCP servers connected.
+                    </div>
+                )}
+            </div>
+
+            <div className="border-border/70 bg-secondary/20 flex flex-col gap-3 rounded-xl border p-4">
+                <p className="text-sm font-medium">Manual Server</p>
+                {manualError && <p className="text-destructive text-xs">{manualError}</p>}
+                <div className="grid grid-cols-[1fr_1fr_150px_auto] gap-2">
+                    <Input value={manualName} onChange={e => setManualName(e.target.value)} placeholder="Server name" className="h-9" />
+                    <Input value={manualUrl} onChange={e => setManualUrl(e.target.value)} placeholder="https://server.example/mcp" className="h-9" />
+                    <select
+                        value={manualTransport}
+                        onChange={e => setManualTransport(e.target.value as MCPTransportType)}
+                        className="bg-background border-border text-foreground h-9 rounded-lg border px-2 text-sm"
+                    >
+                        <option value="streamable-http">Streamable HTTP</option>
+                        <option value="sse">SSE</option>
+                    </select>
+                    <Button rounded="full" size="sm" onClick={createManualServer}>Add</Button>
+                </div>
+            </div>
+
+            <ConfigureRegistryServerDialog
+                server={selectedRegistryServer}
+                existingNames={connectedNames}
+                onOpenChange={open => !open && setSelectedRegistryServer(null)}
+                onAdd={addServer}
             />
         </div>
     );
 };
 
-type AddToolDialogProps = {
-    isOpen: boolean;
+const ConfigureRegistryServerDialog = ({
+    server,
+    existingNames,
+    onOpenChange,
+    onAdd,
+}: {
+    server: any | null;
+    existingNames: Set<string>;
     onOpenChange: (open: boolean) => void;
-    onAddTool: (tool: Record<string, string>) => void;
-};
+    onAdd: (server: MCPServerConfig) => void;
+}) => {
+    const remote = server?.remotes?.[0];
+    const [headers, setHeaders] = useState<Record<string, string>>({});
+    const [testResult, setTestResult] = useState<string>('');
+    const [isTesting, setIsTesting] = useState(false);
 
-const AddToolDialog = ({ isOpen, onOpenChange, onAddTool }: AddToolDialogProps) => {
-    const [mcpToolName, setMcpToolName] = useState('');
-    const [mcpToolUrl, setMcpToolUrl] = useState('');
-    const [error, setError] = useState('');
-    const { mcpConfig } = useMcpToolsStore();
+    useEffect(() => {
+        setHeaders({});
+        setTestResult('');
+    }, [server?.name]);
 
-    const handleAddTool = () => {
-        if (!mcpToolName.trim()) {
-            setError('Tool name is required');
-            return;
-        }
+    if (!server || !remote) return null;
 
-        if (!mcpToolUrl.trim()) {
-            setError('Tool URL is required');
-            return;
-        }
-
-        if (mcpConfig && mcpConfig[mcpToolName]) {
-            setError('A tool with this name already exists');
-            return;
-        }
-
-        setError('');
-
-        onAddTool({
-            [mcpToolName]: mcpToolUrl,
-        });
-
-        setMcpToolName('');
-        setMcpToolUrl('');
-        onOpenChange(false);
+    const id = server.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const config: MCPServerConfig = {
+        id,
+        name: id,
+        title: server.title,
+        url: remote.url,
+        transport: remote.type,
+        enabled: true,
+        source: 'registry',
+        headers: Object.fromEntries(Object.entries(headers).filter(([, value]) => value.trim())),
+        registryName: server.name,
+        registryVersion: server.version,
+        description: server.description,
     };
 
-    const handleOpenChange = (open: boolean) => {
-        if (!open) {
-            setError('');
-            setMcpToolName('');
-            setMcpToolUrl('');
+    const missingRequiredHeader = (remote.headers || []).some(
+        (header: any) => header.required && !headers[header.name]?.trim()
+    );
+
+    const handleTest = async () => {
+        if (missingRequiredHeader) {
+            setTestResult('Fill required headers before testing.');
+            return;
         }
-        onOpenChange(open);
+        setIsTesting(true);
+        setTestResult('');
+        try {
+            const response = await fetch('/api/mcp/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ server: config }),
+            });
+            const result = await response.json();
+            setTestResult(result.ok ? `Connected: ${result.tools?.length || 0} tools` : result.error || 'Connection failed');
+        } finally {
+            setIsTesting(false);
+        }
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-            <DialogContent ariaTitle="Add MCP Tool" className="!max-w-md rounded-2xl">
+        <Dialog open={!!server} onOpenChange={onOpenChange}>
+            <DialogContent ariaTitle="Configure MCP Server" className="!max-w-md rounded-2xl">
                 <div className="flex flex-col gap-4">
-                    <h3 className="text-lg font-bold">Add New MCP Tool</h3>
-
-                    {error && <p className="text-destructive text-sm font-medium">{error}</p>}
-
-                    <div className="flex flex-col gap-2">
-                        <label className="text-sm font-medium">Tool Name</label>
-                        <Input
-                            placeholder="Tool Name"
-                            value={mcpToolName}
-                            onChange={e => {
-                                const key = e.target.value?.trim().toLowerCase().replace(/ /g, '-');
-                                setMcpToolName(key);
-                                if (error) setError('');
-                            }}
-                        />
-                        <p className="text-muted-foreground text-xs">
-                            Will be automatically converted to lowercase with hyphens
-                        </p>
+                    <div>
+                        <h3 className="text-lg font-bold">{server.title}</h3>
+                        <p className="text-muted-foreground text-sm">{server.description}</p>
                     </div>
 
                     <div className="flex flex-col gap-2">
-                        <label className="text-sm font-medium">Tool Server URL</label>
-                        <Input
-                            placeholder="https://your-mcp-server.com"
-                            value={mcpToolUrl}
-                            onChange={e => {
-                                setMcpToolUrl(e.target.value);
-                                if (error) setError('');
-                            }}
-                        />
-                        <p className="text-muted-foreground text-xs">
-                            Example: https://your-mcp-server.com
-                        </p>
+                        <label className="text-sm font-medium">Remote URL</label>
+                        <Input value={remote.url} readOnly />
                     </div>
+
+                    {(remote.headers || []).map((header: any) => (
+                        <div key={header.name} className="flex flex-col gap-2">
+                            <label className="text-sm font-medium">{header.name}</label>
+                            <Input
+                                type={header.secret ? 'password' : 'text'}
+                                value={headers[header.name] || ''}
+                                onChange={e => setHeaders(prev => ({ ...prev, [header.name]: e.target.value }))}
+                                placeholder={header.placeholder || header.description || header.name}
+                            />
+                            {header.description && <p className="text-muted-foreground text-xs">{header.description}</p>}
+                        </div>
+                    ))}
+
+                    {existingNames.has(id) && <p className="text-destructive text-sm">This server is already connected.</p>}
+                    {testResult && <p className="text-muted-foreground text-sm">{testResult}</p>}
                 </div>
                 <DialogFooter className="border-border mt-4 border-t pt-4">
                     <div className="flex justify-end gap-2">
-                        <Button
-                            variant="bordered"
-                            rounded={'full'}
-                            onClick={() => handleOpenChange(false)}
-                        >
+                        <Button variant="bordered" rounded="full" onClick={() => onOpenChange(false)}>
                             Cancel
                         </Button>
-                        <Button onClick={handleAddTool} rounded="full">
-                            Add Tool
+                        <Button variant="bordered" rounded="full" onClick={handleTest} disabled={isTesting}>
+                            {isTesting && <IconLoader2 size={14} className="animate-spin" />}
+                            Test Connection
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                onAdd(config);
+                                onOpenChange(false);
+                            }}
+                            rounded="full"
+                            disabled={existingNames.has(id) || missingRequiredHeader}
+                        >
+                            Add Server
                         </Button>
                     </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    );
+};
+
+export const MemorySettings = () => {
+    const {
+        memories,
+        settings,
+        loadMemories,
+        updateSettings,
+        updateMemory,
+        deleteMemory,
+        clearMemories,
+        exportMemories,
+    } = useMemoryStore();
+    const [filter, setFilter] = useState('');
+    const [editing, setEditing] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        loadMemories();
+    }, [loadMemories]);
+
+    const activeCount = memories.filter(memory => memory.status === 'active').length;
+    const disabledCount = memories.filter(memory => memory.status !== 'active').length;
+    const lastLearned = memories[0]?.updatedAt;
+    const filtered = memories.filter(memory => {
+        if (!filter.trim()) return true;
+        const haystack = `${memory.type} ${memory.content} ${memory.tags.join(' ')} ${memory.keywords.join(' ')}`.toLowerCase();
+        return haystack.includes(filter.toLowerCase());
+    });
+    const groups = {
+        style: filtered.filter(memory => memory.type === 'style'),
+        preference: filtered.filter(memory => memory.type === 'preference'),
+        fact: filtered.filter(memory => memory.type === 'fact'),
+        instruction: filtered.filter(memory => memory.type === 'instruction'),
+    };
+
+    const downloadExport = () => {
+        const blob = new Blob([exportMemories()], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `llmchat-memories-${new Date().toISOString().slice(0, 10)}.json`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const renderMemory = (memory: (typeof memories)[number]) => {
+        const draft = editing[memory.id] ?? memory.content;
+        const isEditing = memory.id in editing;
+        return (
+            <div key={memory.id} className="border-border/70 bg-secondary/20 rounded-xl border p-3">
+                <div className="flex items-start gap-3">
+                    <IconDatabase size={15} className="text-muted-foreground mt-1 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                        {isEditing ? (
+                            <textarea
+                                value={draft}
+                                onChange={e => setEditing(prev => ({ ...prev, [memory.id]: e.target.value }))}
+                                className="bg-background border-border text-foreground min-h-16 w-full rounded-lg border p-2 text-sm"
+                            />
+                        ) : (
+                            <p className="text-sm leading-relaxed">{memory.content}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <Badge variant={memory.status === 'active' ? 'secondary' : 'outline'}>
+                                {memory.status}
+                            </Badge>
+                            <Badge variant="outline">{Math.round(memory.confidence * 100)}%</Badge>
+                            {memory.tags.slice(0, 4).map(tag => (
+                                <Badge key={tag} variant="outline">{tag}</Badge>
+                            ))}
+                            {memory.lastUsedAt && (
+                                <span className="text-muted-foreground text-[11px]">
+                                    used {memory.useCount}x
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                        {isEditing ? (
+                            <Button
+                                size="xs"
+                                rounded="full"
+                                onClick={() => {
+                                    updateMemory(memory.id, { content: draft });
+                                    setEditing(prev => {
+                                        const next = { ...prev };
+                                        delete next[memory.id];
+                                        return next;
+                                    });
+                                }}
+                            >
+                                Save
+                            </Button>
+                        ) : (
+                            <Button
+                                size="xs"
+                                variant="ghost"
+                                rounded="full"
+                                onClick={() => setEditing(prev => ({ ...prev, [memory.id]: memory.content }))}
+                            >
+                                Edit
+                            </Button>
+                        )}
+                        <Button
+                            size="xs"
+                            variant="ghost"
+                            rounded="full"
+                            onClick={() =>
+                                updateMemory(memory.id, {
+                                    status: memory.status === 'active' ? 'disabled' : 'active',
+                                })
+                            }
+                        >
+                            {memory.status === 'active' ? 'Disable' : 'Enable'}
+                        </Button>
+                        <Button size="xs" variant="ghost" onClick={() => deleteMemory(memory.id)}>
+                            <IconTrash size={14} />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex flex-col gap-6 pb-6">
+            <div className="flex flex-col gap-1">
+                <h2 className="flex items-center gap-2 text-base font-semibold">
+                    Memory <IconBrain size={16} className="text-brand" />
+                </h2>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                    Local browser memory learns style, preferences, facts, and standing instructions from chats.
+                </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+                <div className="border-border/70 bg-secondary/20 rounded-xl border p-3">
+                    <p className="text-muted-foreground text-xs">Active</p>
+                    <p className="text-xl font-semibold">{activeCount}</p>
+                </div>
+                <div className="border-border/70 bg-secondary/20 rounded-xl border p-3">
+                    <p className="text-muted-foreground text-xs">Disabled</p>
+                    <p className="text-xl font-semibold">{disabledCount}</p>
+                </div>
+                <div className="border-border/70 bg-secondary/20 rounded-xl border p-3">
+                    <p className="text-muted-foreground text-xs">Last learned</p>
+                    <p className="truncate text-sm font-medium">
+                        {lastLearned ? new Date(lastLearned).toLocaleDateString() : 'Never'}
+                    </p>
+                </div>
+            </div>
+
+            <div className="border-border/70 bg-secondary/20 flex flex-col gap-3 rounded-xl border p-4">
+                {[
+                    ['Use memory in chats', 'enabled'],
+                    ['Automatically learn from chats', 'autoLearn'],
+                    ['Use writing style memory', 'styleMemoryEnabled'],
+                ].map(([label, key]) => (
+                    <label key={key} className="flex items-center justify-between gap-3 text-sm">
+                        <span>{label}</span>
+                        <input
+                            type="checkbox"
+                            checked={Boolean(settings[key as keyof typeof settings])}
+                            onChange={e => updateSettings({ [key]: e.target.checked })}
+                        />
+                    </label>
+                ))}
+                <p className="text-muted-foreground text-xs">
+                    Memory is stored locally in this browser. It is not synced to a server.
+                </p>
+            </div>
+
+            <Input
+                value={filter}
+                onChange={e => setFilter(e.target.value)}
+                placeholder="Search memories..."
+                className="h-9"
+            />
+
+            {memories.length === 0 && (
+                <div className="border-border/70 text-muted-foreground rounded-xl border border-dashed p-5 text-center text-sm">
+                    No memories yet. Memory improves after you chat.
+                </div>
+            )}
+
+            {Object.entries(groups).map(([type, items]) => (
+                items.length > 0 && (
+                    <div key={type} className="flex flex-col gap-2">
+                        <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
+                            {type}
+                        </p>
+                        {items.map(renderMemory)}
+                    </div>
+                )
+            ))}
+
+            <div className="border-border/70 flex items-center justify-between rounded-xl border border-dashed p-4">
+                <div className="flex items-center gap-2">
+                    <IconShieldLock size={16} className="text-muted-foreground" />
+                    <p className="text-sm">Privacy controls</p>
+                </div>
+                <div className="flex gap-2">
+                    <Button size="sm" rounded="full" variant="bordered" onClick={downloadExport}>
+                        Export JSON
+                    </Button>
+                    <Button size="sm" rounded="full" variant="bordered" onClick={clearMemories}>
+                        Clear all
+                    </Button>
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -381,7 +736,11 @@ export const ProvidersSettings = () => {
         try {
             const testModelId = config.defaultModel || config.models[0] || '';
             const res = await testProvider(config, testModelId);
-            setTestResults(prev => ({ ...prev, [providerId]: `Status: ${res}` }));
+            const localOriginHint =
+                res === 'Local provider blocked by browser' && typeof window !== 'undefined'
+                    ? `Status: ${res}. Run: OLLAMA_ORIGINS=${window.location.origin} ollama serve`
+                    : `Status: ${res}`;
+            setTestResults(prev => ({ ...prev, [providerId]: localOriginHint }));
         } catch (e: any) {
             setTestResults(prev => ({ ...prev, [providerId]: `Status: Error - ${e.message || e}` }));
         } finally {
@@ -606,6 +965,11 @@ export const ProvidersSettings = () => {
                                                     placeholder={registryEntry.defaultBaseUrl || 'http://localhost:8080'}
                                                     className="h-8 text-xs"
                                                 />
+                                                {config.isLocal && (
+                                                    <p className="text-muted-foreground text-[11px] leading-relaxed">
+                                                        Local providers run in your browser. From a deployed site, Ollama must allow this origin: <span className="font-mono">OLLAMA_ORIGINS={typeof window !== 'undefined' ? window.location.origin : 'https://your-app.example'} ollama serve</span>
+                                                    </p>
+                                                )}
                                             </div>
                                         )}
 

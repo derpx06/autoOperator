@@ -1,11 +1,12 @@
+import { extractMemories } from '@repo/ai/memory';
 import { useWorkflowWorker } from '@repo/ai/worker';
 import { ChatMode, ChatModeConfig } from '@repo/shared/config';
 import { ThreadItem } from '@repo/shared/types';
 import { buildCoreMessagesFromThreadItems, plausible } from '@repo/shared/utils';
 import { nanoid } from 'nanoid';
 import { useParams, useRouter } from 'next/navigation';
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo } from 'react';
-import { useApiKeysStore, useAppStore, useChatStore, useMcpToolsStore } from '../store';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
+import { useApiKeysStore, useAppStore, useChatStore, useMcpToolsStore, useMemoryStore } from '../store';
 import { getProviderConfig } from '@repo/ai/providers';
 export type AgentContextType = {
     runAgent: (body: any) => Promise<void>;
@@ -57,14 +58,32 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
     const apiKeys = useApiKeysStore(state => state.getAllKeys);
     const hasApiKeyForChatMode = useApiKeysStore(state => state.hasApiKeyForChatMode);
     const setShowSignInModal = useAppStore(state => state.setShowSignInModal);
+    const loadMemories = useMemoryStore(state => state.loadMemories);
 
     // Fetch remaining credits when user changes
     useEffect(() => {
         fetchRemainingCredits();
-    }, [user?.id, fetchRemainingCredits]);
+        loadMemories();
+    }, [user?.id, fetchRemainingCredits, loadMemories]);
 
     // In-memory store for thread items
     const threadItemMap = useMemo(() => new Map<string, ThreadItem>(), []);
+    const pendingMemoryRuns = useRef(
+        new Map<
+            string,
+            {
+                query: string;
+                threadId: string;
+                threadItemId: string;
+                messages: ThreadItem[];
+                selectedProviderId?: string;
+                selectedModelId?: string;
+                apiKey?: string;
+                baseUrl?: string;
+                answer: string;
+            }
+        >()
+    );
 
     // Define common event types to reduce repetition
     const EVENT_TYPES = [
@@ -123,6 +142,48 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
         [threadItemMap, updateThreadItem]
     );
 
+    const learnMemoriesFromRun = useCallback(async (threadItemId: string, fallbackAnswer?: string) => {
+        const run = pendingMemoryRuns.current.get(threadItemId);
+        if (!run) return;
+        const memoryState = useMemoryStore.getState();
+        if (!memoryState.settings.autoLearn) {
+            pendingMemoryRuns.current.delete(threadItemId);
+            return;
+        }
+
+        try {
+            const existingMemories = await memoryState.searchMemories(run.query, {
+                includeStyle: true,
+                limit: 8,
+            });
+            const candidates = await extractMemories({
+                input: {
+                    query: run.query,
+                    answer: fallbackAnswer || run.answer,
+                    recentMessages: run.messages.slice(-4).map(item => ({
+                        query: item.query,
+                        answer: item.answer?.text,
+                    })),
+                    existingMemories,
+                },
+                selectedProviderId: run.selectedProviderId,
+                selectedModelId: run.selectedModelId,
+                apiKey: run.apiKey,
+                baseUrl: run.baseUrl,
+            });
+            for (const candidate of candidates) {
+                await memoryState.addMemory(candidate, {
+                    sourceThreadId: run.threadId,
+                    sourceThreadItemId: run.threadItemId,
+                });
+            }
+        } catch (error) {
+            console.warn('[memory] Failed to extract memories:', error);
+        } finally {
+            pendingMemoryRuns.current.delete(threadItemId);
+        }
+    }, []);
+
     const { startWorkflow, abortWorkflow } = useWorkflowWorker(
         useCallback(
             (data: any) => {
@@ -145,11 +206,13 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                     setIsGenerating(false);
                     setTimeout(fetchRemainingCredits, 1000);
                     if (data?.threadItemId) {
+                        const item = threadItemMap.get(data.threadItemId);
+                        void learnMemoriesFromRun(data.threadItemId, item?.answer?.text);
                         threadItemMap.delete(data.threadItemId);
                     }
                 }
             },
-            [handleThreadItemUpdate, setIsGenerating, fetchRemainingCredits, threadItemMap]
+            [handleThreadItemUpdate, setIsGenerating, fetchRemainingCredits, threadItemMap, learnMemoriesFromRun]
         )
     );
 
@@ -159,6 +222,7 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
             setAbortController(abortController);
             setIsGenerating(true);
             const startTime = performance.now();
+            let completedAnswer = '';
 
             abortController.signal.addEventListener('abort', () => {
                 console.info('Abort controller triggered');
@@ -243,6 +307,11 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                                         data?.threadId &&
                                         data?.threadItemId
                                     ) {
+                                        if (currentEvent === 'answer') {
+                                            completedAnswer =
+                                                data.answer?.fullText ||
+                                                `${completedAnswer}${data.answer?.text || ''}`;
+                                        }
                                         const shouldPersistToDB =
                                             Date.now() - lastDbUpdate >= DB_UPDATE_INTERVAL;
                                         handleThreadItemUpdate(
@@ -266,6 +335,7 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                                         );
                                         setTimeout(fetchRemainingCredits, 1000);
                                         if (data.threadItemId) {
+                                            void learnMemoriesFromRun(data.threadItemId, completedAnswer);
                                             threadItemMap.delete(data.threadItemId);
                                         }
                                         if (data.status === 'error') {
@@ -412,6 +482,22 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                 }
             }
 
+            const memories = await useMemoryStore.getState().searchMemories(query, {
+                includeStyle: true,
+                limit: 7,
+            });
+            pendingMemoryRuns.current.set(optimisticAiThreadItemId, {
+                query,
+                threadId,
+                threadItemId: optimisticAiThreadItemId,
+                messages: messages || [],
+                selectedProviderId: selectedProviderId || undefined,
+                selectedModelId: selectedModelId || undefined,
+                apiKey: providerApiKey || undefined,
+                baseUrl: providerBaseUrl || undefined,
+                answer: '',
+            });
+
             const isLocalProvider = selectedProviderId === 'ollama';
             const runClientSide = isLocalProvider || (!selectedProviderId && hasApiKeyForChatMode(mode));
 
@@ -433,6 +519,7 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                     threadId,
                     messages: coreMessages,
                     mcpConfig: getSelectedMCP(),
+                    memories,
                     threadItemId: optimisticAiThreadItemId,
                     parentThreadItemId: '',
                     customInstructions,
@@ -449,6 +536,7 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                     threadId,
                     messages: coreMessages,
                     mcpConfig: getSelectedMCP(),
+                    memories,
                     threadItemId: optimisticAiThreadItemId,
                     customInstructions,
                     parentThreadItemId: '',

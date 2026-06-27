@@ -1,6 +1,24 @@
 import { providerRegistry } from './provider-registry';
 import { ProviderConfig } from './provider-types';
 
+const isLocalUrl = (url: string) => {
+    try {
+        const hostname = new URL(url).hostname;
+        return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+    } catch {
+        return false;
+    }
+};
+
+const getLocalProviderBrowserHint = (config: ProviderConfig, baseUrl: string) => {
+    if (!providerRegistry[config.type]?.isLocal || !isLocalUrl(baseUrl)) return null;
+    if (typeof window === 'undefined') return null;
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return null;
+    }
+    return `${config.name} is running on your computer, but this app is loaded from ${window.location.origin}. Start the local provider with browser CORS enabled for this origin. For Ollama, run: OLLAMA_ORIGINS=${window.location.origin} ollama serve`;
+};
+
 export const syncModels = async (config: ProviderConfig): Promise<string[]> => {
     const type = config.type;
     const registryEntry = providerRegistry[type];
@@ -63,6 +81,10 @@ export const syncModels = async (config: ProviderConfig): Promise<string[]> => {
         }
     } catch (error) {
         console.error(`Failed to sync models for provider ${config.name}:`, error);
+        const localHint = getLocalProviderBrowserHint(config, baseUrl);
+        if (localHint && String(error).toLowerCase().includes('failed to fetch')) {
+            throw new Error(localHint);
+        }
         throw error;
     }
 };

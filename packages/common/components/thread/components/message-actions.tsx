@@ -24,7 +24,7 @@ export const MessageActions = forwardRef<HTMLDivElement, MessageActionsProps>(
         const selectedModelId = useChatStore(state => state.selectedModelId);
         const setSelectedProviderId = useChatStore(state => state.setSelectedProviderId);
         const setSelectedModelId = useChatStore(state => state.setSelectedModelId);
-        const activeConfigs = getProviderConfigs().filter(c => c.enabled);
+        const activeConfigs = getProviderConfigs().filter(c => c.enabled && c.models?.length > 0);
 
         const [chatMode, setChatMode] = useState<ChatMode>(threadItem.mode);
         const { copyToClipboard, status, copyMarkdown, markdownCopyStatus } = useCopyText();

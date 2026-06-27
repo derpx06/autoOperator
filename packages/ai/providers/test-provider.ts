@@ -8,6 +8,7 @@ export type TestProviderStatus =
     | 'Invalid base URL'
     | 'Model not found'
     | 'Rate limited'
+    | 'Local provider blocked by browser'
     | 'Provider error'
     | 'Network error';
 
@@ -50,7 +51,10 @@ export const testProvider = async (
             if (status === 429 || errorStr.includes('rate limit') || errorStr.includes('too many requests')) {
                 return 'Rate limited';
             }
-            if (errorStr.includes('fetch failed') || errorStr.includes('dns') || errorStr.includes('connection refused') || errorStr.includes('network')) {
+            if (errorStr.includes('fetch failed') || errorStr.includes('failed to fetch') || errorStr.includes('dns') || errorStr.includes('connection refused') || errorStr.includes('network')) {
+                if (config.isLocal && typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                    return 'Local provider blocked by browser';
+                }
                 return 'Network error';
             }
 
@@ -60,6 +64,9 @@ export const testProvider = async (
         const errorStr = String(err).toLowerCase();
         if (errorStr.includes('url') || errorStr.includes('baseurl')) {
             return 'Invalid base URL';
+        }
+        if (config.isLocal && typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            return 'Local provider blocked by browser';
         }
         return 'Network error';
     }

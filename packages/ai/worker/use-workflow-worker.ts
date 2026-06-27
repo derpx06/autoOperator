@@ -1,6 +1,8 @@
 import { ChatMode } from '@repo/shared/config';
 import { CoreAssistantMessage, CoreUserMessage } from 'ai';
 import { useEffect, useRef, useState } from 'react';
+import { MemoryContextItem } from '../memory';
+import { MCPServerConfig } from '../tools';
 
 export type WorkflowConfig = {
     maxIterations?: number;
@@ -111,6 +113,7 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
         config,
         apiKeys,
         mcpConfig,
+        memories,
         selectedProviderId,
         selectedModelId,
         apiKey,
@@ -125,7 +128,8 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
         messages: (CoreUserMessage | CoreAssistantMessage)[];
         config?: WorkflowConfig;
         apiKeys?: Record<string, string>;
-        mcpConfig?: Record<string, string>;
+        mcpConfig?: Record<string, string> | MCPServerConfig[];
+        memories?: MemoryContextItem[];
         selectedProviderId?: string;
         selectedModelId?: string;
         apiKey?: string;
@@ -170,6 +174,7 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
                     config,
                     apiKeys: apiKeys || {},
                     mcpConfig,
+                    memories,
                     selectedProviderId,
                     selectedModelId,
                     apiKey,

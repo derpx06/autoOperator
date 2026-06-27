@@ -88,6 +88,7 @@ export async function executeStream({
                 },
                 gl,
                 mcpConfig: data.mcpConfig || {},
+                memories: data.memories || [],
                 showSuggestions: data.showSuggestions || false,
                 onFinish: onFinish,
                 selectedProviderId: data.selectedProviderId,

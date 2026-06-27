@@ -1,4 +1,5 @@
 import { createTask } from '@repo/orchestrator';
+import { buildMemoryPromptSection } from '../../memory';
 import { z } from 'zod';
 import { getModelFromChatMode, ModelEnum } from '../../models';
 import { WorkflowContextSchema, WorkflowEventSchema } from '../flow';
@@ -94,6 +95,8 @@ export const quickSearchTask = createTask<WorkflowEventSchema, WorkflowContextSc
         const gl = context?.get('gl');
         const model = getModelFromChatMode(chatMode);
         const customInstructions = context?.get('customInstructions');
+        const memories = context?.get('memories') || [];
+        const memoryPrompt = buildMemoryPromptSection(memories);
 
         if (
             customInstructions &&
@@ -102,7 +105,15 @@ export const quickSearchTask = createTask<WorkflowEventSchema, WorkflowContextSc
             messages = [
                 {
                     role: 'system',
-                    content: `Today is ${getHumanizedDate()}. and current location is ${gl?.city}, ${gl?.country}. \n\n ${customInstructions}`,
+                    content: `Today is ${getHumanizedDate()}. and current location is ${gl?.city}, ${gl?.country}. \n\n ${customInstructions}${memoryPrompt}`,
+                },
+                ...messages,
+            ];
+        } else if (memoryPrompt) {
+            messages = [
+                {
+                    role: 'system',
+                    content: `Today is ${getHumanizedDate()}. and current location is ${gl?.city}, ${gl?.country}.${memoryPrompt}`,
                 },
                 ...messages,
             ];
