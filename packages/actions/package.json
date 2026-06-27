@@ -7,7 +7,7 @@
         ".": "./index.ts"
     },
     "dependencies": {
-        "@repo/prisma": "workspace:*"
+        "@repo/prisma": "*"
     },
     "devDependencies": {
         "@repo/typescript-config": "*",

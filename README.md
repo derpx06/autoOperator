@@ -1,6 +1,7 @@
 # AutoOperator – Privacy-First AI Chatbot with Deep Research & Pro Search
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FKuchiki_github%2Fautooperator&root-directory=apps%2Fweb)
 
 **Open-source AI chatbot platform** built with Next.js and TypeScript. Chat with GPT-4, Claude, Gemini, and more. Use **Deep Research** and **Pro Search** for complex topics. Your data stays in your browser—no server-side chat storage.
 
@@ -15,6 +16,7 @@
 - [Supported AI models](#supported-ai-models)
 - [Tech stack](#tech-stack)
 - [Quick start](#quick-start)
+- [Vercel Deployment](#vercel-deployment)
 - [Project structure](#project-structure)
 - [Workflow orchestration](#workflow-orchestration)
 - [License](#license)
@@ -64,42 +66,61 @@ Exact model list and features (web search, image upload, auth) are configured in
 
 - **Frontend:** Next.js 14, React 18, TypeScript, Tailwind CSS, Shadcn UI, Framer Motion, Tiptap, Zustand, Dexie (IndexedDB)
 - **AI:** Vercel AI SDK, LangChain (OpenAI, Anthropic, Google, Groq, Ollama), OpenAI API
-- **Monorepo:** Turborepo, Bun (or Yarn)
+- **Monorepo:** Turborepo, NPM Workspaces
 - **Quality:** ESLint, Prettier, Husky
 
 ---
 
 ## Quick start
 
-**Prerequisites:** [Bun](https://bun.sh) (recommended) or Yarn.
+**Prerequisites:** [Node.js](https://nodejs.org) (v18+ recommended) and `npm`.
 
 ```bash
 # Clone the repository
 git clone https://github.com/Kuchiki_github/autooperator.git
 cd autooperator
 
-# Install dependencies
-bun install
+# Install dependencies using npm (peer dependency warnings can be bypassed via legacy-peer-deps)
+npm install --legacy-peer-deps
 
-# Start the dev server (web app)
-bun dev
+# Start the development server
+npm run dev
 ```
 
 Open **http://localhost:3000** in your browser.
-
-For the web app only (from repo root):
-
-```bash
-cd apps/web && bun run dev
-```
 
 Copy `apps/web/.env.example` to `apps/web/.env` and set API keys for the providers you want to use (OpenAI, Anthropic, etc.).
 
 ---
 
+## Vercel Deployment
+
+You can deploy AutoOperator with one-click on Vercel:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FKuchiki_github%2Fautooperator&root-directory=apps%2Fweb)
+
+### Manual Vercel Setup
+
+If you prefer to configure the Vercel project manually, configure the following settings during import:
+
+1. **Framework Preset:** Next.js
+2. **Root Directory:** `apps/web` (Ensure this path is set so Vercel builds the Next.js web application package)
+3. **Build Command:** `npm run build` (This runs turborepo from the root and generates the production bundles)
+4. **Environment Variables:**
+    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (Required for authentication)
+    - `CLERK_SECRET_KEY` (Required for authentication)
+    - `OPENAI_API_KEY` (For OpenAI Models)
+    - `ANTHROPIC_API_KEY` (For Anthropic Models)
+    - `GEMINI_API_KEY` (For Google Gemini Models)
+    - `UPSTASH_REDIS_REST_URL` (For rate limiting and workflow execution caching)
+    - `UPSTASH_REDIS_REST_TOKEN` (For rate limiting and workflow execution caching)
+    - `DATABASE_URL` (For feedback collection database, e.g. Neon PostgreSQL)
+
+---
+
 ## Project structure
 
-Monorepo layout (no desktop app in tree):
+Monorepo layout:
 
 ```
 autooperator/
