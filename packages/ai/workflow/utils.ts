@@ -8,6 +8,7 @@ import {
     ToolSet,
 } from 'ai';
 import { format } from 'date-fns';
+import { searchWeb, SearchProviderConfig } from '../search';
 import { ZodSchema } from 'zod';
 import { ModelEnum } from '../models';
 import { getLanguageModel, getCustomLanguageModel } from '../providers';
@@ -292,65 +293,19 @@ export const getHumanizedDate = () => {
     return format(new Date(), 'MMMM dd, yyyy, h:mm a');
 };
 
-export const getSERPResults = async (queries: string[], gl?: Geo) => {
-    const myHeaders = new Headers();
-    const apiKey = process.env.SERPER_API_KEY || (self as any).SERPER_API_KEY || '';
-
-    if (!apiKey) {
-        throw new Error('SERPER_API_KEY is not configured');
-    }
-
-    myHeaders.append('X-API-KEY', apiKey);
-    myHeaders.append('Content-Type', 'application/json');
-
-    const raw = JSON.stringify(
-        queries.slice(0, 3).map(query => ({
-            q: query,
-            gl: gl?.country,
-            location: gl?.city,
-        }))
-    );
-
-    console.log('raw', raw);
-
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-        const response = await fetch('https://google.serper.dev/search', {
-            method: 'POST',
-            headers: myHeaders,
-            body: raw,
-            redirect: 'follow',
-            signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            throw new Error(`SERP API responded with status: ${response.status}`);
-        }
-
-        const batchResult = await response.json();
-
-        const organicResultsLists =
-            batchResult?.map((result: any) => result.organic?.slice(0, 10)) || [];
-        const allOrganicResults = organicResultsLists.flat();
-        const uniqueOrganicResults = allOrganicResults.filter(
-            (result: any, index: number, self: any[]) =>
-                index === self.findIndex((r: any) => r?.link === result?.link)
-        );
-
-        return uniqueOrganicResults.slice(0, 10).map((item: any) => ({
-            title: item.title,
-            link: item.link,
-            snippet: item.snippet,
-        }));
-    } catch (error) {
-        console.error(error);
-        return [];
-    }
-};
+export const getSERPResults = async (
+    queries: string[],
+    gl?: Geo,
+    searchProvider?: SearchProviderConfig,
+    mode: 'quick' | 'pro' | 'deep' = 'quick'
+) => searchWeb({
+    query: queries[0] || '',
+    queries,
+    maxResults: 10,
+    country: gl?.country,
+    location: gl?.city,
+    mode,
+}, searchProvider);
 
 export const getWebPageContent = async (url: string) => {
     try {
@@ -491,13 +446,18 @@ export const processWebPages = async (
     }
 };
 
-export const executeWebSearch = async (queries: string[], signal?: AbortSignal, gl?: Geo) => {
+export const executeWebSearch = async (
+    queries: string[],
+    signal?: AbortSignal,
+    gl?: Geo,
+    searchProvider?: SearchProviderConfig
+) => {
     if (signal?.aborted) {
         throw new Error('Operation aborted');
     }
 
     const flatQueries = queries.flat();
-    const results = await getSERPResults(flatQueries, gl);
+    const results = await getSERPResults(flatQueries, gl, searchProvider, 'deep');
     const uniqueResults = results.filter(
         (result: { link: string }, index: number, self: { link: string }[]) =>
             index === self.findIndex((t: { link: string }) => t.link === result.link)

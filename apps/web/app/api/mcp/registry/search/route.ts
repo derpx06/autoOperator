@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const REGISTRY_URL = 'https://registry.modelcontextprotocol.io/v0.1/servers';
 const PAGE_LIMIT = 100;
-const MAX_PAGES = 8;
+const MAX_PAGES = 20;
 
 type RegistryRemote = {
     type?: string;
@@ -25,7 +25,12 @@ type RegistryEntry = {
         description?: string;
         version?: string;
         remotes?: RegistryRemote[];
-        packages?: unknown[];
+        packages?: Array<{
+            registryType?: string;
+            identifier?: string;
+            version?: string;
+            transport?: { type?: string };
+        }>;
     };
     _meta?: {
         'io.modelcontextprotocol.registry/official'?: {
@@ -60,6 +65,12 @@ const normalizeEntry = (entry: RegistryEntry) => {
         description: server.description || '',
         version: server.version || '',
         remotes,
+        packages: (server.packages || []).map(pkg => ({
+            registryType: pkg.registryType || '',
+            identifier: pkg.identifier || '',
+            version: pkg.version || '',
+            transport: pkg.transport?.type || 'stdio',
+        })),
         hasRemote: remotes.length > 0,
         hasPackages: Array.isArray(server.packages) && server.packages.length > 0,
         status: entry._meta?.['io.modelcontextprotocol.registry/official']?.status || 'active',
@@ -76,6 +87,7 @@ export async function GET(request: NextRequest) {
         for (let page = 0; page < MAX_PAGES; page++) {
             const url = new URL(REGISTRY_URL);
             url.searchParams.set('limit', String(PAGE_LIMIT));
+            if (query) url.searchParams.set('search', query);
             if (cursor) url.searchParams.set('cursor', cursor);
 
             const response = await fetch(url, {
@@ -98,9 +110,13 @@ export async function GET(request: NextRequest) {
             if (!cursor) break;
         }
 
-        const filtered = results
+        const deduped = Array.from(
+            new Map(results.map(server => [server.name, server])).values()
+        );
+
+        const filtered = deduped
             .filter(server => server.status !== 'deleted')
-            .filter(server => server.isLatest)
+            .filter(server => query ? true : server.isLatest)
             .filter(server => {
                 if (!query) return true;
                 return [server.name, server.title, server.description]
@@ -108,10 +124,19 @@ export async function GET(request: NextRequest) {
                     .toLowerCase()
                     .includes(query);
             })
-            .sort((a, b) => Number(b.hasRemote) - Number(a.hasRemote))
-            .slice(0, 100);
+            .sort((a, b) => {
+                const remoteSort = Number(b.hasRemote) - Number(a.hasRemote);
+                if (remoteSort !== 0) return remoteSort;
+                return a.title.localeCompare(b.title);
+            })
+            .slice(0, 250);
 
-        return NextResponse.json({ servers: filtered });
+        return NextResponse.json({
+            servers: filtered,
+            total: filtered.length,
+            remoteCount: filtered.filter(server => server.hasRemote).length,
+            packageOnlyCount: filtered.filter(server => !server.hasRemote && server.hasPackages).length,
+        });
     } catch (error) {
         console.error('Failed to search MCP registry:', error);
         return NextResponse.json({ error: 'Failed to search MCP registry' }, { status: 500 });

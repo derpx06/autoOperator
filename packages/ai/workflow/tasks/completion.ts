@@ -1,5 +1,6 @@
 import { createTask } from '@repo/orchestrator';
 import { buildAllTools } from '../../tools/mcp';
+import { buildComposioTools } from '../../connectors';
 import { getModelFromChatMode } from '../../models';
 import { WorkflowContextSchema, WorkflowEventSchema } from '../flow';
 import { ChunkBuffer, generateText, getHumanizedDate, handleError } from '../utils';
@@ -18,6 +19,7 @@ export const completionTask = createTask<WorkflowEventSchema, WorkflowContextSch
         const mode = context.get('mode');
         const webSearch = context.get('webSearch') || false;
         const mcpConfig = context.get('mcpConfig') || {};
+        const composioConfig = context.get('composioConfig');
         const memories = context.get('memories') || [];
 
         let messages =
@@ -79,6 +81,13 @@ export const completionTask = createTask<WorkflowEventSchema, WorkflowContextSch
             }
         }
 
+        const composioTools = buildComposioTools(composioConfig);
+        const allTools = {
+            ...(mcpTools || {}),
+            ...(composioTools || {}),
+        };
+        const hasTools = Object.keys(allTools).length > 0;
+
         const reasoningBuffer = new ChunkBuffer({
             threshold: 200,
             breakOn: ['\n\n'],
@@ -120,9 +129,9 @@ export const completionTask = createTask<WorkflowEventSchema, WorkflowContextSch
                 messages,
                 prompt,
                 signal,
-                tools: mcpTools,
-                toolChoice: mcpTools ? 'auto' : 'none',
-                maxSteps: mcpTools ? 5 : 2,
+                tools: hasTools ? allTools : undefined,
+                toolChoice: hasTools ? 'auto' : 'none',
+                maxSteps: hasTools ? 5 : 2,
                 onToolCall: toolCall => {
                     events?.update('toolCalls', prev => [...(prev || []), toolCall]);
                 },

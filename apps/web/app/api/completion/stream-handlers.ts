@@ -89,6 +89,8 @@ export async function executeStream({
                 gl,
                 mcpConfig: data.mcpConfig || {},
                 memories: data.memories || [],
+                searchProvider: data.searchProvider,
+                composioConfig: data.composioConfig,
                 showSuggestions: data.showSuggestions || false,
                 onFinish: onFinish,
                 selectedProviderId: data.selectedProviderId,

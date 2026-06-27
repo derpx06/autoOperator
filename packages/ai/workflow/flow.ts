@@ -9,6 +9,8 @@ import { Geo } from '@vercel/functions';
 import { CoreMessage } from 'ai';
 import { Langfuse } from 'langfuse';
 import { MemoryContextItem } from '../memory';
+import { ComposioToolConfig } from '../connectors';
+import { SearchProviderConfig } from '../search';
 import { MCPServerConfig } from '../tools';
 import {
     analysisTask,
@@ -72,6 +74,8 @@ export type WorkflowEventSchema = {
 export type WorkflowContextSchema = {
     mcpConfig: Record<string, string> | MCPServerConfig[];
     memories?: MemoryContextItem[];
+    searchProvider?: SearchProviderConfig;
+    composioConfig?: ComposioToolConfig;
     question: string;
     search_queries: string[];
     messages: CoreMessage[];
@@ -116,6 +120,8 @@ export type WorkflowContextSchema = {
 export const runWorkflow = ({
     mcpConfig = {},
     memories = [],
+    searchProvider,
+    composioConfig,
     mode,
     question,
     threadId,
@@ -135,6 +141,8 @@ export const runWorkflow = ({
 }: {
     mcpConfig: Record<string, string> | MCPServerConfig[];
     memories?: MemoryContextItem[];
+    searchProvider?: SearchProviderConfig;
+    composioConfig?: ComposioToolConfig;
     mode: ChatMode;
     question: string;
     threadId: string;
@@ -187,6 +195,8 @@ export const runWorkflow = ({
     const context = createContext<WorkflowContextSchema>({
         mcpConfig,
         memories,
+        searchProvider,
+        composioConfig,
         question,
         mode,
         webSearch,

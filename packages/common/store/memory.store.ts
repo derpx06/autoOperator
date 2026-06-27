@@ -4,6 +4,7 @@ import {
     MemoryCandidate,
     MemoryContextItem,
     MemoryRecord,
+    MemoryScope,
     MemorySearchOptions,
     MemorySettings,
     MemoryType,
@@ -30,6 +31,19 @@ class MemoryDatabase extends Dexie {
             memories: 'id, type, status, updatedAt, lastUsedAt',
             settings: 'id',
         });
+        this.version(2).stores({
+            memories: 'id, type, status, scope, scopeThreadId, scopeProjectId, updatedAt, lastUsedAt',
+            settings: 'id',
+        }).upgrade(async transaction => {
+            const memories = transaction.table<MemoryRecord, string>('memories');
+            const existing = await memories.toArray();
+            await Promise.all(existing.map(memory => memories.put({
+                ...memory,
+                scope: memory.scope || 'global',
+                sourceType: memory.sourceType || 'chat',
+                conflictsWith: memory.conflictsWith || [],
+            })));
+        });
     }
 }
 
@@ -44,7 +58,15 @@ type State = {
 type Actions = {
     loadMemories: () => Promise<void>;
     addMemory: (candidate: MemoryCandidate, source?: Partial<MemoryRecord>) => Promise<MemoryRecord | null>;
+    addManualMemory: (input: {
+        content: string;
+        type: MemoryType;
+        scope: MemoryScope;
+        scopeThreadId?: string;
+        scopeProjectId?: string;
+    }) => Promise<MemoryRecord | null>;
     updateMemory: (id: string, patch: Partial<MemoryRecord>) => Promise<void>;
+    resolveConflict: (id: string, action: 'keep-existing' | 'use-new' | 'delete-new') => Promise<void>;
     deleteMemory: (id: string) => Promise<void>;
     clearMemories: () => Promise<void>;
     searchMemories: (query: string, options?: MemorySearchOptions) => Promise<MemoryContextItem[]>;
@@ -66,6 +88,7 @@ const toContextItem = (memory: MemoryRecord): MemoryContextItem => ({
     tags: memory.tags,
     keywords: memory.keywords,
     confidence: memory.confidence,
+    scope: memory.scope || 'global',
 });
 
 const scoreMemory = (memory: MemoryRecord, query: string) => {
@@ -86,6 +109,102 @@ const shouldMerge = (existing: MemoryRecord, candidate: MemoryCandidate) => {
     const candidateText = normalizeText(candidate.content);
     if (existingText === candidateText) return true;
     return existingText.includes(candidateText) || candidateText.includes(existingText);
+};
+
+const SECRET_PATTERNS = [
+    /api[_-]?key/i,
+    /secret/i,
+    /password/i,
+    /token/i,
+    /bearer\s+[a-z0-9._-]+/i,
+    /sk-[a-z0-9_-]{12,}/i,
+    /[a-z0-9]{24,}\.[a-z0-9._-]{12,}/i,
+];
+
+const hasSecretLikeText = (value: string) => SECRET_PATTERNS.some(pattern => pattern.test(value));
+
+const preview = (value?: string) => value?.trim().replace(/\s+/g, ' ').slice(0, 220);
+
+const inferScope = (
+    candidate: MemoryCandidate,
+    source: Partial<MemoryRecord>
+): MemoryScope => {
+    if (source.scope) return source.scope;
+    if (candidate.scopeSuggestion === 'project' && source.scopeProjectId) return 'project';
+    if (candidate.scopeSuggestion === 'thread' && source.scopeThreadId) return 'thread';
+    if (candidate.type === 'style' || candidate.type === 'preference') return 'global';
+    const text = normalizeText(`${candidate.content} ${candidate.tags.join(' ')} ${candidate.keywords.join(' ')}`);
+    if (candidate.type === 'instruction' && /\b(always|every time|by default)\b/.test(text)) return 'global';
+    if (/\b(project|repo|repository|codebase|startup|client)\b/.test(text) && source.scopeProjectId) return 'project';
+    if (source.scopeThreadId) return 'thread';
+    return 'global';
+};
+
+const scopeMatches = (memory: MemoryRecord, options: MemorySearchOptions) => {
+    const scope = memory.scope || 'global';
+    if (scope === 'global') return true;
+    if (scope === 'thread') return Boolean(options.threadId && memory.scopeThreadId === options.threadId);
+    return Boolean(options.projectId && memory.scopeProjectId === options.projectId);
+};
+
+const scopesOverlap = (memory: MemoryRecord, scope: MemoryScope, source: Partial<MemoryRecord>) => {
+    const existingScope = memory.scope || 'global';
+    if (existingScope === 'global' || scope === 'global') return true;
+    if (existingScope === 'thread' || scope === 'thread') {
+        return Boolean(memory.scopeThreadId && source.scopeThreadId && memory.scopeThreadId === source.scopeThreadId);
+    }
+    return Boolean(memory.scopeProjectId && source.scopeProjectId && memory.scopeProjectId === source.scopeProjectId);
+};
+
+const OPPOSITION_GROUPS = [
+    ['concise', 'brief', 'short', 'succinct'],
+    ['detailed', 'thorough', 'long', 'verbose', 'exhaustive'],
+    ['formal', 'professional'],
+    ['casual', 'friendly', 'informal'],
+    ['dark'],
+    ['light'],
+    ['always'],
+    ['never'],
+];
+
+const hasOpposition = (left: string, right: string) => {
+    const leftTokens = new Set(tokenize(left));
+    const rightTokens = new Set(tokenize(right));
+    for (let index = 0; index < OPPOSITION_GROUPS.length; index += 2) {
+        const a = OPPOSITION_GROUPS[index] || [];
+        const b = OPPOSITION_GROUPS[index + 1] || [];
+        if (
+            a.some(token => leftTokens.has(token)) && b.some(token => rightTokens.has(token)) ||
+            b.some(token => leftTokens.has(token)) && a.some(token => rightTokens.has(token))
+        ) {
+            return true;
+        }
+    }
+    return false;
+};
+
+const findConflict = (
+    memories: MemoryRecord[],
+    candidate: MemoryCandidate,
+    scope: MemoryScope,
+    source: Partial<MemoryRecord>
+) => {
+    const candidateTokens = new Set([
+        ...tokenize(candidate.content),
+        ...candidate.tags.flatMap(tokenize),
+        ...candidate.keywords.flatMap(tokenize),
+    ]);
+    return memories.find(memory => {
+        if (memory.status !== 'active' || memory.type !== candidate.type) return false;
+        if (!scopesOverlap(memory, scope, source)) return false;
+        const memoryTokens = [
+            ...tokenize(memory.content),
+            ...memory.tags.flatMap(tokenize),
+            ...memory.keywords.flatMap(tokenize),
+        ];
+        const overlap = memoryTokens.filter(token => candidateTokens.has(token)).length;
+        return overlap > 0 && hasOpposition(memory.content, candidate.content);
+    });
 };
 
 const getThreshold = (type: MemoryType) => {
@@ -112,7 +231,14 @@ export const useMemoryStore = create<State & Actions>()(
                 db.settings.get('memory-settings'),
             ]);
             set(state => {
-                state.memories = memories.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+                state.memories = memories
+                    .map(memory => ({
+                        ...memory,
+                        scope: memory.scope || 'global',
+                        sourceType: memory.sourceType || 'chat',
+                        conflictsWith: memory.conflictsWith || [],
+                    }))
+                    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
                 state.settings = { ...DEFAULT_SETTINGS, ...(storedSettings?.value || {}) };
                 state.isLoaded = true;
             });
@@ -120,8 +246,15 @@ export const useMemoryStore = create<State & Actions>()(
 
         addMemory: async (candidate, source = {}) => {
             if (!db || candidate.confidence < getThreshold(candidate.type)) return null;
+            if (hasSecretLikeText(`${candidate.content} ${candidate.tags.join(' ')} ${candidate.keywords.join(' ')}`)) return null;
             const active = get().memories.filter(memory => memory.status === 'active');
-            const duplicate = active.find(memory => shouldMerge(memory, candidate));
+            const scope = inferScope(candidate, source);
+            const scopedSource = {
+                ...source,
+                scope,
+                scopeThreadId: source.scopeThreadId || source.sourceThreadId,
+            };
+            const duplicate = active.find(memory => scopesOverlap(memory, scope, scopedSource) && shouldMerge(memory, candidate));
             const now = new Date();
 
             if (duplicate) {
@@ -131,6 +264,10 @@ export const useMemoryStore = create<State & Actions>()(
                     confidence: Math.max(duplicate.confidence, candidate.confidence),
                     tags: Array.from(new Set([...duplicate.tags, ...candidate.tags])).slice(0, 8),
                     keywords: Array.from(new Set([...duplicate.keywords, ...candidate.keywords])).slice(0, 12),
+                    sourceThreadId: source.sourceThreadId || duplicate.sourceThreadId,
+                    sourceThreadItemId: source.sourceThreadItemId || duplicate.sourceThreadItemId,
+                    sourceQueryPreview: preview(source.sourceQueryPreview) || duplicate.sourceQueryPreview,
+                    sourceAnswerPreview: preview(source.sourceAnswerPreview) || duplicate.sourceAnswerPreview,
                     updatedAt: now,
                 };
                 await db.memories.put(updated);
@@ -140,7 +277,9 @@ export const useMemoryStore = create<State & Actions>()(
                 return updated;
             }
 
-            if (active.length >= get().settings.maxActiveMemories) {
+            const conflict = findConflict(get().memories, candidate, scope, scopedSource);
+
+            if (!conflict && active.length >= get().settings.maxActiveMemories) {
                 const lowest = [...active]
                     .filter(memory => memory.type !== 'style')
                     .sort((a, b) => a.confidence + a.useCount - (b.confidence + b.useCount))[0];
@@ -154,9 +293,19 @@ export const useMemoryStore = create<State & Actions>()(
                 tags: candidate.tags,
                 keywords: candidate.keywords,
                 confidence: candidate.confidence,
-                status: 'active',
+                status: conflict ? 'conflict' : 'active',
+                scope,
+                scopeThreadId: scope === 'thread' ? scopedSource.scopeThreadId : undefined,
+                scopeProjectId: scope === 'project' ? scopedSource.scopeProjectId : undefined,
+                sourceType: source.sourceType || 'chat',
                 sourceThreadId: source.sourceThreadId,
                 sourceThreadItemId: source.sourceThreadItemId,
+                sourceQueryPreview: preview(source.sourceQueryPreview),
+                sourceAnswerPreview: preview(source.sourceAnswerPreview),
+                conflictsWith: conflict ? [conflict.id] : [],
+                conflictReason: conflict
+                    ? `Conflicts with active ${conflict.type} memory: "${conflict.content}"`
+                    : undefined,
                 createdAt: now,
                 updatedAt: now,
                 useCount: 0,
@@ -168,6 +317,27 @@ export const useMemoryStore = create<State & Actions>()(
             return record;
         },
 
+        addManualMemory: async input => {
+            const content = input.content.trim().replace(/\s+/g, ' ');
+            if (!content || hasSecretLikeText(content)) return null;
+            return get().addMemory(
+                {
+                    type: input.type,
+                    content,
+                    tags: ['manual'],
+                    keywords: tokenize(content).slice(0, 12),
+                    confidence: 1,
+                    scopeSuggestion: input.scope,
+                },
+                {
+                    sourceType: 'manual',
+                    scope: input.scope,
+                    scopeThreadId: input.scopeThreadId,
+                    scopeProjectId: input.scopeProjectId,
+                }
+            );
+        },
+
         updateMemory: async (id, patch) => {
             if (!db) return;
             const current = get().memories.find(memory => memory.id === id);
@@ -177,6 +347,26 @@ export const useMemoryStore = create<State & Actions>()(
             set(state => {
                 state.memories = state.memories.map(memory => memory.id === id ? updated : memory);
             });
+        },
+
+        resolveConflict: async (id, action) => {
+            const current = get().memories.find(memory => memory.id === id);
+            if (!current || current.status !== 'conflict') return;
+
+            if (action === 'delete-new') {
+                await get().deleteMemory(id);
+                return;
+            }
+
+            if (action === 'keep-existing') {
+                await get().updateMemory(id, { status: 'archived' });
+                return;
+            }
+
+            await Promise.all((current.conflictsWith || []).map(conflictId =>
+                get().updateMemory(conflictId, { status: 'disabled' })
+            ));
+            await get().updateMemory(id, { status: 'active', conflictReason: undefined, conflictsWith: [] });
         },
 
         deleteMemory: async id => {
@@ -198,7 +388,7 @@ export const useMemoryStore = create<State & Actions>()(
         searchMemories: async (query, options = {}) => {
             const settings = get().settings;
             if (!settings.enabled) return [];
-            const active = get().memories.filter(memory => memory.status === 'active');
+            const active = get().memories.filter(memory => memory.status === 'active' && scopeMatches(memory, options));
             const style = options.includeStyle === false || !settings.styleMemoryEnabled
                 ? []
                 : active.filter(memory => memory.type === 'style').slice(0, 5);

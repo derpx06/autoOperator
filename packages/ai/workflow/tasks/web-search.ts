@@ -17,7 +17,7 @@ export const webSearchTask = createTask<WorkflowEventSchema, WorkflowContextSche
         const stepId = data?.stepId;
         const gl = context?.get('gl');
         const { updateStep } = sendEvents(events);
-        const results = await executeWebSearch(queries, signal, gl);
+        const results = await executeWebSearch(queries, signal, gl, context?.get('searchProvider'));
 
         const searchResultsData = results?.map((result: any) => ({
             title: result.title,

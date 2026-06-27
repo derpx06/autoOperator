@@ -96,6 +96,7 @@ export const quickSearchTask = createTask<WorkflowEventSchema, WorkflowContextSc
         const model = getModelFromChatMode(chatMode);
         const customInstructions = context?.get('customInstructions');
         const memories = context?.get('memories') || [];
+        const searchProvider = context?.get('searchProvider');
         const memoryPrompt = buildMemoryPromptSection(memories);
 
         if (
@@ -143,7 +144,7 @@ export const quickSearchTask = createTask<WorkflowEventSchema, WorkflowContextSc
             },
         });
 
-        const results = await getSERPResults([query.query], gl);
+        const results = await getSERPResults([query.query], gl, searchProvider, 'quick');
 
         if (!results || results.length === 0) {
             throw new Error('No results found');

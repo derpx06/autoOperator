@@ -40,6 +40,8 @@ ctx.addEventListener('message', async (event: MessageEvent) => {
                 apiKeys: newApiKeys,
                 mcpConfig,
                 memories,
+                searchProvider,
+                composioConfig,
             } = payload;
 
             // Set API keys if provided
@@ -77,6 +79,8 @@ ctx.addEventListener('message', async (event: MessageEvent) => {
                     config,
                     mcpConfig,
                     memories,
+                    searchProvider,
+                    composioConfig,
                     selectedProviderId: payload.selectedProviderId,
                     selectedModelId: payload.selectedModelId,
                     apiKey: payload.apiKey,

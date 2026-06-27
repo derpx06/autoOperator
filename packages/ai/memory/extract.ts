@@ -12,6 +12,7 @@ const memoryCandidateSchema = z.object({
                 tags: z.array(z.string()).default([]),
                 keywords: z.array(z.string()).default([]),
                 confidence: z.number().min(0).max(1),
+                scopeSuggestion: z.enum(['global', 'thread', 'project']).optional(),
             })
         )
         .max(8),
@@ -73,6 +74,7 @@ export const normalizeMemoryCandidate = (candidate: MemoryCandidate): MemoryCand
     tags: Array.from(new Set((candidate.tags || []).map(tag => tag.trim().toLowerCase()).filter(Boolean))).slice(0, 8),
     keywords: Array.from(new Set((candidate.keywords || []).map(keyword => keyword.trim().toLowerCase()).filter(Boolean))).slice(0, 12),
     confidence: Math.max(0, Math.min(1, Number(candidate.confidence) || 0)),
+    scopeSuggestion: candidate.scopeSuggestion,
 });
 
 export const extractMemories = async ({
@@ -114,6 +116,7 @@ Rules:
 - Save tone, writing style, preferences, stable facts, and explicit standing instructions.
 - Do not save secrets, credentials, temporary task details, or sensitive health/legal/financial identity claims.
 - Avoid duplicates of existing memories.
+- Use scopeSuggestion "global" for writing style and broad durable preferences, "project" for project-specific facts, and "thread" for details useful only in this conversation.
 - Use concise first-person-neutral wording.
 - Return an empty array when there is nothing durable to remember.
 

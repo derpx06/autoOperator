@@ -129,7 +129,12 @@ export const proSearchTask = createTask<WorkflowEventSchema, WorkflowContextSche
             try {
                 const gl = context?.get('gl');
                 console.log('gl', gl);
-                searchResults = await getSERPResults([query.query], gl);
+                searchResults = await getSERPResults(
+                    [query.query],
+                    gl,
+                    context?.get('searchProvider'),
+                    'pro'
+                );
                 if (!searchResults || searchResults.length === 0) {
                     throw new Error('No search results found');
                 }

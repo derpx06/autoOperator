@@ -1,5 +1,7 @@
 export type MemoryType = 'style' | 'preference' | 'fact' | 'instruction';
-export type MemoryStatus = 'active' | 'disabled' | 'archived';
+export type MemoryStatus = 'active' | 'disabled' | 'archived' | 'conflict';
+export type MemoryScope = 'global' | 'thread' | 'project';
+export type MemorySourceType = 'chat' | 'manual';
 
 export type MemoryRecord = {
     id: string;
@@ -9,8 +11,16 @@ export type MemoryRecord = {
     keywords: string[];
     confidence: number;
     status: MemoryStatus;
+    scope: MemoryScope;
+    scopeThreadId?: string;
+    scopeProjectId?: string;
+    sourceType: MemorySourceType;
     sourceThreadId?: string;
     sourceThreadItemId?: string;
+    sourceQueryPreview?: string;
+    sourceAnswerPreview?: string;
+    conflictsWith?: string[];
+    conflictReason?: string;
     createdAt: Date;
     updatedAt: Date;
     lastUsedAt?: Date;
@@ -23,6 +33,7 @@ export type MemoryCandidate = {
     tags: string[];
     keywords: string[];
     confidence: number;
+    scopeSuggestion?: MemoryScope;
 };
 
 export type MemorySettings = {
@@ -35,7 +46,7 @@ export type MemorySettings = {
 
 export type MemoryContextItem = Pick<
     MemoryRecord,
-    'id' | 'type' | 'content' | 'tags' | 'keywords' | 'confidence'
+    'id' | 'type' | 'content' | 'tags' | 'keywords' | 'confidence' | 'scope'
 >;
 
 export type MemoryExtractionInput = {
@@ -48,4 +59,6 @@ export type MemoryExtractionInput = {
 export type MemorySearchOptions = {
     includeStyle?: boolean;
     limit?: number;
+    threadId?: string;
+    projectId?: string;
 };

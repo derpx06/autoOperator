@@ -25,6 +25,16 @@ export const MessageActions = forwardRef<HTMLDivElement, MessageActionsProps>(
         const setSelectedProviderId = useChatStore(state => state.setSelectedProviderId);
         const setSelectedModelId = useChatStore(state => state.setSelectedModelId);
         const activeConfigs = getProviderConfigs().filter(c => c.enabled && c.models?.length > 0);
+        const generatedProviderId = threadItem.metadata?.selectedProviderId as string | undefined;
+        const generatedModelId = threadItem.metadata?.selectedModelId as string | undefined;
+        const generatedProvider = generatedProviderId
+            ? getProviderConfigs().find(config => config.id === generatedProviderId)
+            : undefined;
+        const generatedLabel = generatedProvider && generatedModelId
+            ? `${generatedProvider.name} : ${generatedModelId}`
+            : threadItem.mode
+                ? getChatModeName(threadItem.mode)
+                : '';
 
         const [chatMode, setChatMode] = useState<ChatMode>(threadItem.mode);
         const { copyToClipboard, status, copyMarkdown, markdownCopyStatus } = useCopyText();
@@ -112,9 +122,9 @@ export const MessageActions = forwardRef<HTMLDivElement, MessageActionsProps>(
                         <IconTrash size={16} strokeWidth={2} />
                     </Button>
                 )}
-                {threadItem.mode && (
+                {generatedLabel && (
                     <p className="text-muted-foreground px-2 text-xs">
-                        Generated with {getChatModeName(threadItem.mode)}
+                        Generated with {generatedLabel}
                     </p>
                 )}
             </div>

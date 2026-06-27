@@ -4,6 +4,8 @@ import { immer } from 'zustand/middleware/immer';
 
 export const SETTING_TABS = {
     PROVIDERS: 'providers',
+    SEARCH: 'search',
+    CONNECTORS: 'connectors',
     MCP_TOOLS: 'mcp-tools',
     MEMORY: 'memory',
     CREDITS: 'credits',

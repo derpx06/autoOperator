@@ -8,6 +8,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { useApiKeysStore, useAppStore, useChatStore, useMcpToolsStore, useMemoryStore } from '../store';
 import { getProviderConfig } from '@repo/ai/providers';
+import { getComposioToolConfig } from '@repo/ai/connectors';
+import { resolveSearchProviderConfig } from '@repo/ai/search';
 export type AgentContextType = {
     runAgent: (body: any) => Promise<void>;
     handleSubmit: (args: {
@@ -75,6 +77,7 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                 query: string;
                 threadId: string;
                 threadItemId: string;
+                projectId?: string;
                 messages: ThreadItem[];
                 selectedProviderId?: string;
                 selectedModelId?: string;
@@ -115,7 +118,9 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                 eventData,
                 shouldPersistToDB
             );
-            const prevItem = threadItemMap.get(threadItemId) || ({} as ThreadItem);
+            const prevItem = threadItemMap.get(threadItemId) ||
+                useChatStore.getState().threadItems.find(item => item.id === threadItemId) ||
+                ({} as ThreadItem);
             const updatedItem: ThreadItem = {
                 ...prevItem,
                 query: eventData?.query || prevItem.query || '',
@@ -155,6 +160,8 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
             const existingMemories = await memoryState.searchMemories(run.query, {
                 includeStyle: true,
                 limit: 8,
+                threadId: run.threadId,
+                projectId: run.projectId,
             });
             const candidates = await extractMemories({
                 input: {
@@ -175,6 +182,10 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                 await memoryState.addMemory(candidate, {
                     sourceThreadId: run.threadId,
                     sourceThreadItemId: run.threadItemId,
+                    sourceQueryPreview: run.query,
+                    sourceAnswerPreview: fallbackAnswer || run.answer,
+                    scopeThreadId: run.threadId,
+                    scopeProjectId: run.projectId,
                 });
             }
         } catch (error) {
@@ -482,14 +493,31 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                 }
             }
 
+            aiThreadItem.metadata = {
+                ...(aiThreadItem.metadata || {}),
+                selectedProviderId: selectedProviderId || undefined,
+                selectedModelId: selectedModelId || undefined,
+            };
+            updateThreadItem(threadId, {
+                id: optimisticAiThreadItemId,
+                metadata: aiThreadItem.metadata,
+                persistToDB: true,
+            });
+
+            const projectId = useChatStore.getState().getCurrentThread()?.projectId;
             const memories = await useMemoryStore.getState().searchMemories(query, {
                 includeStyle: true,
                 limit: 7,
+                threadId,
+                projectId,
             });
+            const searchProvider = resolveSearchProviderConfig();
+            const composioConfig = getComposioToolConfig();
             pendingMemoryRuns.current.set(optimisticAiThreadItemId, {
                 query,
                 threadId,
                 threadItemId: optimisticAiThreadItemId,
+                projectId,
                 messages: messages || [],
                 selectedProviderId: selectedProviderId || undefined,
                 selectedModelId: selectedModelId || undefined,
@@ -520,6 +548,8 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                     messages: coreMessages,
                     mcpConfig: getSelectedMCP(),
                     memories,
+                    searchProvider,
+                    composioConfig,
                     threadItemId: optimisticAiThreadItemId,
                     parentThreadItemId: '',
                     customInstructions,
@@ -537,6 +567,8 @@ export const AgentProvider = ({ children }: { children: ReactNode }) => {
                     messages: coreMessages,
                     mcpConfig: getSelectedMCP(),
                     memories,
+                    searchProvider,
+                    composioConfig,
                     threadItemId: optimisticAiThreadItemId,
                     customInstructions,
                     parentThreadItemId: '',

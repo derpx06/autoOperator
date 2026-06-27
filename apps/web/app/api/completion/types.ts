@@ -25,7 +25,36 @@ const memoryContextItemSchema = z.object({
     tags: z.array(z.string()),
     keywords: z.array(z.string()),
     confidence: z.number(),
+    scope: z.enum(['global', 'thread', 'project']).default('global'),
 });
+
+const searchProviderConfigSchema = z.object({
+    id: z.string(),
+    type: z.enum(['tavily', 'brave', 'exa', 'perplexity', 'serper', 'kagi', 'custom']),
+    name: z.string(),
+    apiKey: z.string().optional(),
+    baseUrl: z.string().optional(),
+    enabled: z.boolean(),
+    isDefault: z.boolean(),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+}).optional();
+
+const composioToolConfigSchema = z.object({
+    apiKey: z.string().optional(),
+    userId: z.string(),
+    enabled: z.boolean(),
+    tools: z.array(z.object({
+        slug: z.string(),
+        name: z.string(),
+        description: z.string().optional(),
+        toolkit: z.string().optional(),
+        appSlug: z.string().optional(),
+        inputSchema: z.any().optional(),
+        connectedAccountId: z.string().optional(),
+        enabled: z.boolean(),
+    })),
+}).optional();
 
 export const completionRequestSchema = z.object({
     threadId: z.string(),
@@ -37,6 +66,8 @@ export const completionRequestSchema = z.object({
     maxIterations: z.number().optional(),
     mcpConfig: z.union([z.record(z.string(), z.string()), z.array(mcpServerConfigSchema)]).optional(),
     memories: z.array(memoryContextItemSchema).optional(),
+    searchProvider: searchProviderConfigSchema,
+    composioConfig: composioToolConfigSchema,
     webSearch: z.boolean().optional(),
     showSuggestions: z.boolean().optional(),
     customInstructions: z.string().optional(),

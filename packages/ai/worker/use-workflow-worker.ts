@@ -2,6 +2,8 @@ import { ChatMode } from '@repo/shared/config';
 import { CoreAssistantMessage, CoreUserMessage } from 'ai';
 import { useEffect, useRef, useState } from 'react';
 import { MemoryContextItem } from '../memory';
+import { ComposioToolConfig } from '../connectors';
+import { SearchProviderConfig } from '../search';
 import { MCPServerConfig } from '../tools';
 
 export type WorkflowConfig = {
@@ -114,6 +116,8 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
         apiKeys,
         mcpConfig,
         memories,
+        searchProvider,
+        composioConfig,
         selectedProviderId,
         selectedModelId,
         apiKey,
@@ -130,6 +134,8 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
         apiKeys?: Record<string, string>;
         mcpConfig?: Record<string, string> | MCPServerConfig[];
         memories?: MemoryContextItem[];
+        searchProvider?: SearchProviderConfig;
+        composioConfig?: ComposioToolConfig;
         selectedProviderId?: string;
         selectedModelId?: string;
         apiKey?: string;
@@ -175,6 +181,8 @@ export function useWorkflowWorker(onMessage?: (data: any) => void, onAbort?: () 
                     apiKeys: apiKeys || {},
                     mcpConfig,
                     memories,
+                    searchProvider,
+                    composioConfig,
                     selectedProviderId,
                     selectedModelId,
                     apiKey,

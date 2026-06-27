@@ -13,6 +13,8 @@
         "./workflow": "./workflow/flow.ts",
         "./worker": "./worker/index.ts",
         "./memory": "./memory/index.ts",
+        "./connectors": "./connectors/index.ts",
+        "./search": "./search/index.ts",
         "./providers": "./providers/index.ts"
     },
     "dependencies": {
