@@ -45,7 +45,7 @@ Ideal for: **AI chat**, **research assistant**, **multi-model LLM interface**, a
 | **Multi-model**       | Switch between GPT-4.1, GPT-4o Mini, Claude 3.5/3.7, Gemini 2 Flash, DeepSeek R1, Llama 4 Scout, O4 Mini, and more. |
 | **Agentic workflows** | Custom workflow engine: plan → gather → analyze → report, with typed events and shared context.                     |
 | **Web & tools**       | Web search, image upload (where supported), MCP (Model Context Protocol) integration.                               |
-| **Auth & credits**    | Optional auth (e.g. Clerk), credit-based usage for premium models.                                                  |
+| **Credits**           |Bring your own api keys to use the models.                                                                           |
 
 ---
 
@@ -107,8 +107,6 @@ If you prefer to configure the Vercel project manually, configure the following 
 2. **Root Directory:** `apps/web` (Ensure this path is set so Vercel builds the Next.js web application package)
 3. **Build Command:** `npm run build` (This runs turborepo from the root and generates the production bundles)
 4. **Environment Variables:**
-    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (Required for authentication)
-    - `CLERK_SECRET_KEY` (Required for authentication)
     - `OPENAI_API_KEY` (For OpenAI Models)
     - `ANTHROPIC_API_KEY` (For Anthropic Models)
     - `GEMINI_API_KEY` (For Google Gemini Models)
