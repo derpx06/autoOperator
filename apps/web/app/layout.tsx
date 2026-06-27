@@ -6,6 +6,7 @@ import type { Viewport } from 'next';
 import { Metadata } from 'next';
 import { Bricolage_Grotesque } from 'next/font/google';
 import localFont from 'next/font/local';
+import { ThemeProvider } from 'next-themes';
 
 const bricolage = Bricolage_Grotesque({
     subsets: ['latin'],
@@ -101,22 +102,20 @@ export default function ParentLayout({
                 ></script> */}
             </head>
             <body>
-                {/* <PostHogProvider> */}
                 <RootProvider>
-                    {/* <ThemeProvider
-        attribute="class"
-        defaultTheme="light"
-        enableSystem
-        disableTransitionOnChange
-      > */}
-                    <TooltipProvider>
-                        <ReactQueryProvider>
-                            <RootLayout>{children}</RootLayout>
-                        </ReactQueryProvider>
-                    </TooltipProvider>
-                    {/* </ThemeProvider> */}
+                    <ThemeProvider
+                        attribute="class"
+                        defaultTheme="system"
+                        enableSystem
+                        disableTransitionOnChange={false}
+                    >
+                        <TooltipProvider>
+                            <ReactQueryProvider>
+                                <RootLayout>{children}</RootLayout>
+                            </ReactQueryProvider>
+                        </TooltipProvider>
+                    </ThemeProvider>
                 </RootProvider>
-                {/* </PostHogProvider> */}
             </body>
         </html>
     );

@@ -2,29 +2,22 @@
 import { FullPageLoader, HistoryItem, Logo } from '@repo/common/components';
 import { useRootContext } from '@repo/common/context';
 import { useAppStore, useChatStore } from '@repo/common/store';
+import { ThemeToggleButton } from './theme-toggle';
 import { Thread } from '@repo/shared/types';
 import {
     Badge,
     Button,
     cn,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
     Flex,
 } from '@repo/ui';
 import {
     IconArrowBarLeft,
     IconArrowBarRight,
     IconCommand,
-    IconLogout,
     IconPinned,
     IconPlus,
     IconSearch,
-    IconSelector,
-    IconSettings,
     IconSettings2,
-    IconUser,
 } from '@tabler/icons-react';
 import { motion } from 'framer-motion';
 import moment from 'moment';
@@ -43,7 +36,6 @@ export const Sidebar = () => {
         return [...threads].sort((a, b) => moment(b[sortBy]).diff(moment(a[sortBy])));
     };
 
-    const clearAllThreads = useChatStore(state => state.clearAllThreads);
     const setIsSidebarOpen = useAppStore(state => state.setIsSidebarOpen);
     const isSidebarOpen = useAppStore(state => state.isSidebarOpen);
     const setIsSettingsOpen = useAppStore(state => state.setIsSettingsOpen);
@@ -71,14 +63,11 @@ export const Sidebar = () => {
         } else {
             groupedThreads.previousMonths.push(thread);
         }
-
-        //TODO: Paginate these threads
     });
 
     const renderGroup = ({
         title,
         threads,
-
         groupIcon,
         renderEmptyState,
     }: {
@@ -89,15 +78,15 @@ export const Sidebar = () => {
     }) => {
         if (threads.length === 0 && !renderEmptyState) return null;
         return (
-            <Flex direction="col" items="start" className="w-full gap-0.5">
-                <div className="text-muted-foreground/70 flex flex-row items-center gap-1 px-2 py-1 text-xs font-medium opacity-70">
+            <Flex direction="col" items="start" className="w-full gap-1">
+                <div className="text-muted-foreground/60 flex flex-row items-center gap-1.5 px-2 py-1 text-[11px] font-semibold tracking-wider uppercase opacity-85">
                     {groupIcon}
                     {title}
                 </div>
                 {threads.length === 0 && renderEmptyState ? (
                     renderEmptyState()
                 ) : (
-                    <Flex className="border-border/50 w-full gap-0.5" gap="none" direction="col">
+                    <Flex className="w-full gap-0.5" gap="none" direction="col">
                         {threads.map(thread => (
                             <HistoryItem
                                 thread={thread}
@@ -106,7 +95,7 @@ export const Sidebar = () => {
                                 isPinned={thread.pinned}
                                 key={thread.id}
                                 dismiss={() => {
-                                    setIsSidebarOpen(prev => false);
+                                    setIsSidebarOpen(() => false);
                                 }}
                                 isActive={thread.id === currentThreadId}
                             />
@@ -120,25 +109,26 @@ export const Sidebar = () => {
     return (
         <div
             className={cn(
-                'relative bottom-0 left-0 top-0 z-[50] flex h-[100dvh] flex-shrink-0 flex-col  py-2 transition-all duration-200',
-                isSidebarOpen ? 'top-0 h-full w-[230px]' : 'w-[50px]'
+                'relative bottom-0 left-0 top-0 z-[50] flex h-[100dvh] flex-shrink-0 flex-col py-3 transition-all duration-300 ease-in-out',
+                isSidebarOpen ? 'top-0 h-full w-[240px]' : 'w-[60px]'
             )}
         >
-            <Flex direction="col" className="w-full flex-1 items-start overflow-hidden">
-                <div className="mb-3 flex w-full flex-row items-center justify-between">
-                    <Link href="/chat" className="w-full">
+            <Flex direction="col" className="w-full flex-1 items-start overflow-hidden bg-transparent">
+                {/* Header section with logo */}
+                <div className="mb-4 flex w-full flex-row items-center justify-between px-3">
+                    <Link href="/chat" className={isSidebarOpen ? 'w-auto' : 'w-full'}>
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ duration: 0.3, delay: 0.2 }}
                             className={cn(
-                                'flex h-8 w-full cursor-pointer items-center justify-start gap-1.5 px-4',
+                                'flex h-9 items-center justify-start gap-2 rounded-xl transition-all duration-200',
                                 !isSidebarOpen && 'justify-center px-0'
                             )}
                         >
-                            <Logo className="text-brand size-5" />
+                            <Logo className="text-brand size-5.5 transition-transform duration-300 hover:rotate-12" />
                             {isSidebarOpen && (
-                                <p className="font-clash text-foreground text-lg font-bold tracking-wide">
+                                <p className="font-clash text-foreground text-base font-bold tracking-tight">
                                     autooperator.co
                                 </p>
                             )}
@@ -150,32 +140,36 @@ export const Sidebar = () => {
                             tooltip="Close Sidebar"
                             tooltipSide="right"
                             size="icon-sm"
-                            onClick={() => setIsSidebarOpen(prev => !prev)}
-                            className={cn(!isSidebarOpen && 'mx-auto', 'mr-2')}
+                            onClick={() => setIsSidebarOpen(() => false)}
+                            className="mr-1 rounded-xl hover:bg-secondary/80 text-muted-foreground hover:text-foreground"
                         >
                             <IconArrowBarLeft size={16} strokeWidth={2} />
                         </Button>
                     )}
                 </div>
+
                 <Flex
                     direction="col"
                     className={cn(
-                        'w-full items-end px-3 ',
-                        !isSidebarOpen && 'items-center justify-center px-0'
+                        'w-full px-3',
+                        !isSidebarOpen && 'items-center justify-center px-1'
                     )}
-                    gap="xs"
+                    gap="sm"
                 >
                     {!isChatPage ? (
                         <Link href="/chat" className={isSidebarOpen ? 'w-full' : ''}>
                             <Button
                                 size={isSidebarOpen ? 'sm' : 'icon-sm'}
                                 variant="bordered"
-                                rounded="lg"
+                                rounded="xl"
                                 tooltip={isSidebarOpen ? undefined : 'New Thread'}
                                 tooltipSide="right"
-                                className={cn(isSidebarOpen && 'relative w-full', 'justify-center')}
+                                className={cn(
+                                    'justify-center border-border/80 shadow-sm transition-all duration-200 hover:border-brand/40 hover:bg-brand/5 hover:text-brand',
+                                    isSidebarOpen && 'relative w-full'
+                                )}
                             >
-                                <IconPlus size={16} strokeWidth={2} className={cn(isSidebarOpen)} />
+                                <IconPlus size={15} strokeWidth={2.5} className={cn(isSidebarOpen)} />
                                 {isSidebarOpen && 'New'}
                             </Button>
                         </Link>
@@ -183,24 +177,28 @@ export const Sidebar = () => {
                         <Button
                             size={isSidebarOpen ? 'sm' : 'icon-sm'}
                             variant="bordered"
-                            rounded="lg"
+                            rounded="xl"
                             tooltip={isSidebarOpen ? undefined : 'New Thread'}
                             tooltipSide="right"
-                            className={cn(isSidebarOpen && 'relative w-full', 'justify-center')}
+                            onClick={() => push('/chat')}
+                            className={cn(
+                                'justify-center border-border/80 shadow-sm transition-all duration-200 hover:border-brand/40 hover:bg-brand/5 hover:text-brand',
+                                isSidebarOpen && 'relative w-full'
+                            )}
                         >
-                            <IconPlus size={16} strokeWidth={2} className={cn(isSidebarOpen)} />
+                            <IconPlus size={15} strokeWidth={2.5} className={cn(isSidebarOpen)} />
                             {isSidebarOpen && 'New Thread'}
                         </Button>
                     )}
                     <Button
                         size={isSidebarOpen ? 'sm' : 'icon-sm'}
                         variant="bordered"
-                        rounded="lg"
+                        rounded="xl"
                         tooltip={isSidebarOpen ? undefined : 'Search'}
                         tooltipSide="right"
                         className={cn(
                             isSidebarOpen && 'relative w-full',
-                            'text-muted-foreground justify-center px-2'
+                            'text-muted-foreground justify-center border-border/80 shadow-sm transition-all duration-200 hover:bg-secondary hover:text-foreground px-2'
                         )}
                         onClick={() => setIsCommandSearchOpen(true)}
                     >
@@ -208,16 +206,16 @@ export const Sidebar = () => {
                         {isSidebarOpen && 'Search'}
                         {isSidebarOpen && <div className="flex-1" />}
                         {isSidebarOpen && (
-                            <div className="flex flex-row items-center gap-1">
+                            <div className="flex flex-row items-center gap-1 opacity-70">
                                 <Badge
                                     variant="secondary"
-                                    className="bg-muted-foreground/10 text-muted-foreground flex size-5 items-center justify-center rounded-md p-0"
+                                    className="bg-muted-foreground/10 text-muted-foreground flex size-5 items-center justify-center rounded-md p-0 text-[10px]"
                                 >
-                                    <IconCommand size={12} strokeWidth={2} className="shrink-0" />
+                                    <IconCommand size={10} strokeWidth={2.5} className="shrink-0" />
                                 </Badge>
                                 <Badge
                                     variant="secondary"
-                                    className="bg-muted-foreground/10 text-muted-foreground flex size-5 items-center justify-center rounded-md p-0"
+                                    className="bg-muted-foreground/10 text-muted-foreground flex size-5 items-center justify-center rounded-md p-0 text-[10px] font-bold"
                                 >
                                     K
                                 </Badge>
@@ -225,40 +223,19 @@ export const Sidebar = () => {
                         )}
                     </Button>
                 </Flex>
-                <Flex
-                    direction="col"
-                    gap="xs"
-                    className={cn(
-                        'border-hard mt-3 w-full  justify-center border-t border-dashed px-3 py-2',
-                        !isSidebarOpen && 'items-center justify-center px-0'
-                    )}
-                >
-                    {/* <Link href="/recent" className={isSidebarOpen ? 'w-full' : ''}>
-                        <Button
-                            size={isSidebarOpen ? 'xs' : 'icon-sm'}
-                            variant="bordered"
-                            rounded="lg"
-                            tooltip={isSidebarOpen ? undefined : 'Recent'}
-                            tooltipSide="right"
-                            className={cn(
-                                'text-muted-foreground w-full justify-start',
-                                !isSidebarOpen && 'w-auto justify-center'
-                            )}
-                        >
-                            <IconHistory size={14} strokeWidth={2} />
-                            {isSidebarOpen && 'Recent'}
-                            {isSidebarOpen && <span className="inline-flex flex-1" />}
-                            {isSidebarOpen && <IconChevronRight size={14} strokeWidth={2} />}
-                        </Button>
-                    </Link> */}
-                </Flex>
 
+                {/* Divider */}
+                <div className="w-full px-3 py-2">
+                    <div className="border-border/60 w-full border-t border-dashed" />
+                </div>
+
+                {/* Thread List */}
                 {false ? (
                     <FullPageLoader />
                 ) : (
                     <Flex
                         direction="col"
-                        gap="md"
+                        gap="lg"
                         className={cn(
                             'no-scrollbar w-full flex-1 overflow-y-auto px-3 pb-[100px]',
                             isSidebarOpen ? 'flex' : 'hidden'
@@ -269,10 +246,10 @@ export const Sidebar = () => {
                             threads: threads
                                 .filter(thread => thread.pinned)
                                 .sort((a, b) => b.pinnedAt.getTime() - a.pinnedAt.getTime()),
-                            groupIcon: <IconPinned size={14} strokeWidth={2} />,
+                            groupIcon: <IconPinned size={11} strokeWidth={2.5} />,
                             renderEmptyState: () => (
-                                <div className="border-hard flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-2">
-                                    <p className="text-muted-foreground text-xs opacity-50">
+                                <div className="border-border/60 flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed p-3 bg-secondary/35">
+                                    <p className="text-muted-foreground/60 text-[11px] font-medium">
                                         No pinned threads
                                     </p>
                                 </div>
@@ -289,39 +266,46 @@ export const Sidebar = () => {
                     </Flex>
                 )}
 
+                {/* Footer Section with Settings and Theme Toggle */}
                 <Flex
                     className={cn(
-                        'from-tertiary via-tertiary/95 absolute bottom-0 mt-auto w-full items-center bg-gradient-to-t via-60% to-transparent p-2 pt-12',
+                        'from-tertiary via-tertiary/95 absolute bottom-0 mt-auto w-full items-center bg-gradient-to-t via-60% to-transparent p-3 pt-12',
                         isSidebarOpen && 'items-start justify-between'
                     )}
                     gap="xs"
                     direction={'col'}
                 >
                     {!isSidebarOpen && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            tooltip="Open Sidebar"
-                            tooltipSide="right"
-                            onClick={() => setIsSidebarOpen(prev => !prev)}
-                            className={cn(!isSidebarOpen && 'mx-auto')}
-                        >
-                            <IconArrowBarRight size={16} strokeWidth={2} />
-                        </Button>
+                        <div className="flex flex-col gap-2 items-center justify-center w-full">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                tooltip="Open Sidebar"
+                                tooltipSide="right"
+                                onClick={() => setIsSidebarOpen(() => true)}
+                                className="mx-auto rounded-xl hover:bg-secondary"
+                            >
+                                <IconArrowBarRight size={16} strokeWidth={2} />
+                            </Button>
+                        </div>
                     )}
                     {isSidebarOpen && (
-                        <div className="flex w-full flex-col gap-1.5 p-1">
-                            <Button
-                                variant="bordered"
-                                size="sm"
-                                rounded="lg"
-                                onClick={() => {
-                                    setIsSettingsOpen(true);
-                                }}
-                            >
-                                <IconSettings2 size={14} strokeWidth={2} />
-                                Settings
-                            </Button>
+                        <div className="flex w-full flex-col gap-2">
+                            <div className="flex w-full flex-row gap-1.5">
+                                <Button
+                                    variant="bordered"
+                                    size="sm"
+                                    rounded="xl"
+                                    className="flex-1 border-border/80 shadow-sm transition-all duration-200 hover:bg-secondary hover:text-foreground"
+                                    onClick={() => {
+                                        setIsSettingsOpen(true);
+                                    }}
+                                >
+                                    <IconSettings2 size={14} strokeWidth={2} />
+                                    Settings
+                                </Button>
+                                <ThemeToggleButton className="rounded-xl border-border/80 shadow-sm" />
+                            </div>
                         </div>
                     )}
                 </Flex>

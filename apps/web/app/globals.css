@@ -12,107 +12,162 @@
     }
 }
 
+/* ─── Smooth theme transitions ─────────────────────────────────────── */
+*,
+*::before,
+*::after {
+    transition:
+        background-color 0.25s ease,
+        border-color 0.25s ease,
+        color 0.15s ease,
+        box-shadow 0.25s ease;
+}
+
+/* Exclude transitions that would cause layout jitter */
+*:focus,
+*:focus-visible,
+button,
+[role='button'],
+input,
+textarea,
+select {
+    transition:
+        background-color 0.25s ease,
+        border-color 0.25s ease,
+        color 0.15s ease,
+        box-shadow 0.25s ease,
+        opacity 0.15s ease,
+        transform 0.15s ease;
+}
+
 @layer base {
+    /* ─────────────────────────────────────────────────────────────
+       LIGHT THEME — Psychology: warm tinted whites reduce eye strain,
+       slight cream tones feel "paper-like" and trustworthy, soft
+       shadows create depth without harsh contrast.
+    ───────────────────────────────────────────────────────────── */
     :root {
         --vaul-overlay-background: 255, 255, 255;
         --vaul-overlay-background-start: transparent;
-        --vaul-overlay-background-end: rgba(0, 0, 0, 0.4);
+        --vaul-overlay-background-end: rgba(0, 0, 0, 0.35);
 
-        --background: 180 0% 100%;
-        --foreground: 180 0% 2%;
+        /* Warm off-white backgrounds — easier on the eyes than pure white */
+        --background: 36 20% 98%;          /* very subtle warm cream */
+        --foreground: 220 20% 10%;         /* deep cool-charcoal for legibility */
 
-        --secondary: 180 0% 98%;
-        --secondary-foreground: 180 0% 4%;
+        --secondary: 36 15% 96%;           /* slightly warm secondary */
+        --secondary-foreground: 220 15% 15%;
 
-        --tertiary: 180 0% 94%;
-        --tertiary-foreground: 180 0% 6%;
+        --tertiary: 36 12% 92%;
+        --tertiary-foreground: 220 15% 20%;
 
-        --quaternary: 180 0% 90%;
-        --quaternary-foreground: 180 0% 10%;
+        --quaternary: 36 10% 87%;
+        --quaternary-foreground: 220 15% 25%;
 
-        --card: 40 30% 98%;
-        --card-foreground: 20 15% 10%;
+        --card: 36 25% 99%;
+        --card-foreground: 220 20% 10%;
 
-        --popover: 180 0% 99.5%;
-        --popover-foreground: 180 0% 2%;
+        --popover: 36 20% 99%;
+        --popover-foreground: 220 20% 8%;
 
+        /* Brand: warm coral/orange — signals energy, warmth, action */
         --brand: 14 93% 63%;
         --brand-foreground: 164 86% 66%;
 
-        --accent: 164 70% 33%;
+        /* Accent: rich teal — calm, trustworthy, focused */
+        --accent: 164 60% 35%;
         --accent-foreground: 164 70% 96%;
 
-        --muted: 180 0% 90%;
-        --muted-foreground: 180 0% 10%;
+        /* Muted: soft warm grey */
+        --muted: 36 10% 88%;
+        --muted-foreground: 220 10% 42%;
 
-        --destructive: 0 84% 60%;
-        --destructive-foreground: 40 30% 98%;
+        --destructive: 0 78% 55%;
+        --destructive-foreground: 36 25% 99%;
 
-        --border: 180 0% 84%;
-        --soft: 180 0% 92%;
-        --hard: 180 0% 78%;
-        --input: 180 0% 85%;
-        --ring: 20 15% 10%;
+        --border: 36 12% 82%;
+        --soft: 36 12% 90%;
+        --hard: 36 10% 74%;
+        --input: 36 12% 84%;
+        --ring: 220 20% 20%;
 
         --radius: 0.5rem;
 
+        /* Layered shadows — psychological depth cues */
         --shadow-subtle-xs:
-            rgba(0, 0, 0, 0.04) 0px 1px 1px -0.5px, rgba(0, 0, 0, 0.08) 0px 2px 2px -1px,
-            rgba(0, 0, 0, 0.08) 0px 0px 0px 1px;
+            0px 1px 2px rgba(30, 25, 20, 0.04),
+            0px 2px 4px rgba(30, 25, 20, 0.04),
+            0px 0px 0px 1px rgba(30, 25, 20, 0.06);
         --shadow-subtle-sm:
-            rgba(0, 0, 0, 0.03) 0px 1px 1px -0.5px, rgba(0, 0, 0, 0.06) 0px 1px 1px -0.5px,
-            rgba(0, 0, 0, 0.06) 0px 2px 2px -1px, rgba(0, 0, 0, 0.05) 0px 0px 0px 0.5px;
+            0px 1px 3px rgba(30, 25, 20, 0.05),
+            0px 2px 6px rgba(30, 25, 20, 0.06),
+            0px 4px 12px rgba(30, 25, 20, 0.04),
+            0px 0px 0px 0.5px rgba(30, 25, 20, 0.05);
     }
 
+    /* ─────────────────────────────────────────────────────────────
+       DARK THEME — Psychology: NOT pitch black (avoids halation
+       effect on OLED/LED — text blooms on pure black). Slightly warm
+       dark reduces blue-light exposure. Subtle cool undertone on text
+       surface maintains focus and reduces cognitive load.
+    ───────────────────────────────────────────────────────────── */
     .dark {
-        --vaul-overlay-background: 255, 255, 255;
+        --vaul-overlay-background: 15, 15, 20;
         --vaul-overlay-background-start: transparent;
-        --vaul-overlay-background-end: rgba(0, 0, 0, 0.4);
+        --vaul-overlay-background-end: rgba(0, 0, 0, 0.55);
 
-        --background: 180 0% 10%;
-        --foreground: 180 0% 98%;
+        /* Deep warm-dark — NOT #000, a sophisticated near-black */
+        --background: 222 16% 10%;         /* deep blue-grey, not pure black */
+        --foreground: 210 20% 93%;         /* slightly cool white, easier to read */
 
-        --secondary: 180 0% 8%;
-        --secondary-foreground: 180 0% 98%;
+        --secondary: 222 16% 8%;           /* slightly deeper layer */
+        --secondary-foreground: 210 15% 92%;
 
-        --tertiary: 180 0% 6%;
-        --tertiary-foreground: 180 0% 98%;
+        --tertiary: 222 18% 6%;
+        --tertiary-foreground: 210 15% 92%;
 
-        --quaternary: 180 0% 2%;
-        --quaternary-foreground: 180 0% 98%;
+        --quaternary: 222 20% 4%;
+        --quaternary-foreground: 210 15% 90%;
 
-        --card: 40 30% 98%;
-        --card-foreground: 20 15% 10%;
+        --card: 222 14% 13%;
+        --card-foreground: 210 20% 92%;
 
-        --popover: 180 0% 4%;
-        --popover-foreground: 180 0% 96%;
+        --popover: 222 18% 7%;
+        --popover-foreground: 210 18% 94%;
 
-        --brand: 14 93% 63%;
-        --brand-foreground: 164 86% 66%;
+        /* Brand stays vivid but slightly softened for dark contexts */
+        --brand: 14 90% 62%;
+        --brand-foreground: 164 80% 66%;
 
-        --accent: 164 70% 33%;
-        --accent-foreground: 164 70% 96%;
+        /* Accent: teal adjusted for dark */
+        --accent: 164 55% 38%;
+        --accent-foreground: 164 60% 96%;
 
-        --muted: 180 0% 20%;
-        --muted-foreground: 180 0% 70%;
+        /* Muted: clearly visible in dark without being harsh */
+        --muted: 222 15% 18%;
+        --muted-foreground: 215 12% 62%;
 
-        --destructive: 0 84% 60%;
-        --destructive-foreground: 40 30% 98%;
+        --destructive: 0 72% 58%;
+        --destructive-foreground: 210 20% 96%;
 
-        --border: 180 0% 16%;
-        --soft: 180 0% 8%;
-        --hard: 180 0% 22%;
-        --input: 180 0% 16%;
-        --ring: 20 15% 10%;
+        --border: 222 14% 18%;
+        --soft: 222 14% 10%;
+        --hard: 222 14% 24%;
+        --input: 222 14% 18%;
+        --ring: 210 15% 55%;
 
         --radius: 0.5rem;
 
+        /* Softer shadows in dark mode — less needed, more subtle */
         --shadow-subtle-xs:
-            rgba(0, 0, 0, 0.04) 0px 1px 1px -0.5px, rgba(0, 0, 0, 0.08) 0px 2px 2px -1px,
-            rgba(0, 0, 0, 0.08) 0px 0px 0px 1px;
+            0px 1px 2px rgba(0, 0, 0, 0.25),
+            0px 2px 4px rgba(0, 0, 0, 0.2),
+            0px 0px 0px 1px rgba(255, 255, 255, 0.04);
         --shadow-subtle-sm:
-            rgba(0, 0, 0, 0.03) 0px 1px 1px -0.5px, rgba(0, 0, 0, 0.06) 0px 1px 1px -0.5px,
-            rgba(0, 0, 0, 0.06) 0px 2px 2px -1px, rgba(0, 0, 0, 0.05) 0px 0px 0px 0.5px;
+            0px 1px 3px rgba(0, 0, 0, 0.3),
+            0px 2px 8px rgba(0, 0, 0, 0.25),
+            0px 4px 16px rgba(0, 0, 0, 0.2),
+            0px 0px 0px 0.5px rgba(255, 255, 255, 0.04);
     }
 }
 
@@ -130,11 +185,11 @@
     }
 }
 
+/* ─── Shiki code block theme-switching ─────────────────────────────── */
 html.dark .shiki,
 html.dark .shiki span {
     color: var(--shiki-dark) !important;
     background-color: var(--background) !important;
-    /* Optional, if you also want font styles */
     font-style: var(--shiki-dark-font-style) !important;
     font-weight: var(--shiki-dark-font-weight) !important;
     text-decoration: var(--shiki-dark-text-decoration) !important;
@@ -149,12 +204,11 @@ html.dark .shiki span {
     /* Hide scrollbar for IE, Edge and Firefox */
     .no-scrollbar {
         -ms-overflow-style: none;
-        /* IE and Edge */
         scrollbar-width: none;
-        /* Firefox */
     }
 }
 
+/* ─── Prompt highlight ──────────────────────────────────────────────── */
 mark.prompt-highlight {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
@@ -165,14 +219,15 @@ mark.prompt-highlight {
 }
 
 .dark mark.prompt-highlight {
-    background-color: hsl(var(--brand) / 0.2);
+    background-color: hsl(var(--brand) / 0.15);
     color: hsl(var(--brand));
     padding: 0.1rem 0.2rem;
     font-weight: 500;
-    border: 1px solid transparent;
+    border: 1px solid hsl(var(--brand) / 0.25);
     border-radius: 4px;
 }
 
+/* ─── Tiptap placeholder ───────────────────────────────────────────── */
 .tiptap .is-editor-empty:first-child::before {
     color: hsl(var(--muted-foreground) / 0.5);
     content: attr(data-placeholder);
@@ -182,20 +237,20 @@ mark.prompt-highlight {
 }
 
 .dark .tiptap .is-editor-empty:first-child::before {
-    color: hsl(var(--muted-foreground));
+    color: hsl(var(--muted-foreground) / 0.7);
     content: attr(data-placeholder);
     float: left;
     height: 0;
     pointer-events: none;
 }
 
+/* ─── Greeting bubble tail ─────────────────────────────────────────── */
 .greeting-bubble::before {
     content: '';
     position: absolute;
     z-index: 0;
     bottom: 0;
     left: -7px;
-    /* Tailwind doesn't support very specific pixel values like -7px */
     height: 20px;
     width: 20px;
     background: hsl(var(--muted));
@@ -212,4 +267,28 @@ mark.prompt-highlight {
     height: 20px;
     background: hsl(var(--background));
     border-bottom-right-radius: 10px;
+}
+
+/* ─── Theme-aware scrollbar (visible but subtle) ───────────────────── */
+:root {
+    scrollbar-color: hsl(var(--border)) transparent;
+    scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--hard));
 }

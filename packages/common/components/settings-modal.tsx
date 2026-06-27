@@ -1,19 +1,20 @@
 'use client';
 import { useMcpToolsStore } from '@repo/common/store';
-import { Alert, AlertDescription, DialogFooter } from '@repo/ui';
+import { DialogFooter } from '@repo/ui';
 import { Button } from '@repo/ui/src/components/button';
-import { IconBolt, IconBoltFilled, IconKey, IconSettings2, IconTrash } from '@tabler/icons-react';
+import { IconKey, IconSettings2, IconTrash } from '@tabler/icons-react';
 
 import { Badge, Dialog, DialogContent, Input } from '@repo/ui';
 
 import { useChatEditor } from '@repo/common/hooks';
-import moment from 'moment';
+import { Editor } from '@tiptap/react';
 import { useState } from 'react';
 import { ApiKeys, useApiKeysStore } from '../store/api-keys.store';
 import { SETTING_TABS, useAppStore } from '../store/app.store';
 import { useChatStore } from '../store/chat.store';
 import { ChatEditor } from './chat-input';
 import { BYOKIcon, ToolIcon } from './icons';
+import { ThemePicker } from './theme-toggle';
 
 export const SettingsModal = () => {
     const isSettingOpen = useAppStore(state => state.isSettingsOpen);
@@ -23,54 +24,64 @@ export const SettingsModal = () => {
 
     const settingMenu = [
         {
-            icon: <IconSettings2 size={16} strokeWidth={2} className="text-muted-foreground" />,
+            icon: <IconSettings2 size={15} strokeWidth={2} />,
             title: 'Customize',
             key: SETTING_TABS.PERSONALIZATION,
             component: <PersonalizationSettings />,
         },
         {
-            icon: <IconBolt size={16} strokeWidth={2} className="text-muted-foreground" />,
-            title: 'Usage',
-            key: SETTING_TABS.CREDITS,
-            component: <CreditsSettings />,
-        },
-        {
-            icon: <IconKey size={16} strokeWidth={2} className="text-muted-foreground" />,
+            icon: <IconKey size={15} strokeWidth={2} />,
             title: 'API Keys',
             key: SETTING_TABS.API_KEYS,
             component: <ApiKeySettings />,
         },
-        // {
-        //     title: 'MCP Tools',
-        //     key: SETTING_TABS.MCP_TOOLS,
-        //     component: <MCPSettings />,
-        // },
     ];
 
     return (
         <Dialog open={isSettingOpen} onOpenChange={() => setIsSettingOpen(false)}>
             <DialogContent
                 ariaTitle="Settings"
-                className="h-full max-h-[600px] !max-w-[760px] overflow-x-hidden rounded-xl p-0"
+                className="h-full max-h-[580px] !max-w-[720px] overflow-x-hidden rounded-2xl p-0 shadow-2xl"
             >
-                <div className="no-scrollbar relative max-w-full overflow-y-auto overflow-x-hidden">
-                    <h3 className="border-border mx-5 border-b py-4 text-lg font-bold">Settings</h3>
-                    <div className="flex flex-row gap-6 p-4">
-                        <div className="flex w-[160px] shrink-0 flex-col gap-1">
-                            {settingMenu.map(setting => (
-                                <Button
-                                    key={setting.key}
-                                    rounded="full"
-                                    className="justify-start"
-                                    variant={settingTab === setting.key ? 'secondary' : 'ghost'}
-                                    onClick={() => setSettingTab(setting.key)}
-                                >
-                                    {setting.icon}
-                                    {setting.title}
-                                </Button>
-                            ))}
+                <div className="no-scrollbar relative flex h-full max-w-full flex-col overflow-hidden">
+                    {/* Header */}
+                    <div className="border-border/60 flex items-center gap-3 border-b px-6 py-4">
+                        <div className="bg-brand/10 flex size-7 items-center justify-center rounded-lg">
+                            <IconSettings2 size={15} strokeWidth={2} className="text-brand" />
                         </div>
-                        <div className="flex flex-1 flex-col overflow-hidden px-4">
+                        <h3 className="text-base font-semibold tracking-tight">Settings</h3>
+                    </div>
+
+                    <div className="flex flex-1 flex-row overflow-hidden">
+                        {/* Sidebar nav */}
+                        <div className="border-border/60 flex w-[160px] shrink-0 flex-col gap-0.5 border-r p-3">
+                            {settingMenu.map(setting => {
+                                const isActive = settingTab === setting.key;
+                                return (
+                                    <button
+                                        key={setting.key}
+                                        onClick={() => setSettingTab(setting.key)}
+                                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 ${
+                                            isActive
+                                                ? 'bg-brand/10 text-brand'
+                                                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`flex size-6 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                                                isActive ? 'bg-brand/20 text-brand' : ''
+                                            }`}
+                                        >
+                                            {setting.icon}
+                                        </span>
+                                        {setting.title}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Content area */}
+                        <div className="no-scrollbar flex flex-1 flex-col overflow-y-auto p-6">
                             {settingMenu.find(setting => setting.key === settingTab)?.component}
                         </div>
                     </div>
@@ -109,7 +120,7 @@ export const MCPSettings = () => {
                     Object.keys(mcpConfig).map(key => (
                         <div
                             key={key}
-                            className="bg-secondary divide-border border-border flex h-12 w-full flex-1 flex-row items-center gap-2 divide-x-2 rounded-lg border px-2.5 py-2"
+                            className="bg-secondary divide-border border-border flex h-12 w-full flex-1 flex-row items-center gap-2 divide-x-2 rounded-xl border px-2.5 py-2"
                         >
                             <div className="flex w-full flex-row items-center gap-2">
                                 <ToolIcon /> <Badge>{key}</Badge>
@@ -188,7 +199,6 @@ const AddToolDialog = ({ isOpen, onOpenChange, onAddTool }: AddToolDialogProps) 
     const { mcpConfig } = useMcpToolsStore();
 
     const handleAddTool = () => {
-        // Validate inputs
         if (!mcpToolName.trim()) {
             setError('Tool name is required');
             return;
@@ -199,27 +209,22 @@ const AddToolDialog = ({ isOpen, onOpenChange, onAddTool }: AddToolDialogProps) 
             return;
         }
 
-        // Check for duplicate names
         if (mcpConfig && mcpConfig[mcpToolName]) {
             setError('A tool with this name already exists');
             return;
         }
 
-        // Clear error if any
         setError('');
 
-        // Add the tool
         onAddTool({
             [mcpToolName]: mcpToolUrl,
         });
 
-        // Reset form and close dialog
         setMcpToolName('');
         setMcpToolUrl('');
         onOpenChange(false);
     };
 
-    // Reset error when dialog opens/closes
     const handleOpenChange = (open: boolean) => {
         if (!open) {
             setError('');
@@ -231,7 +236,7 @@ const AddToolDialog = ({ isOpen, onOpenChange, onAddTool }: AddToolDialogProps) 
 
     return (
         <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-            <DialogContent ariaTitle="Add MCP Tool" className="!max-w-md">
+            <DialogContent ariaTitle="Add MCP Tool" className="!max-w-md rounded-2xl">
                 <div className="flex flex-col gap-4">
                     <h3 className="text-lg font-bold">Add New MCP Tool</h3>
 
@@ -245,7 +250,6 @@ const AddToolDialog = ({ isOpen, onOpenChange, onAddTool }: AddToolDialogProps) 
                             onChange={e => {
                                 const key = e.target.value?.trim().toLowerCase().replace(/ /g, '-');
                                 setMcpToolName(key);
-                                // Clear error when user types
                                 if (error) setError('');
                             }}
                         />
@@ -261,7 +265,6 @@ const AddToolDialog = ({ isOpen, onOpenChange, onAddTool }: AddToolDialogProps) 
                             value={mcpToolUrl}
                             onChange={e => {
                                 setMcpToolUrl(e.target.value);
-                                // Clear error when user types
                                 if (error) setError('');
                             }}
                         />
@@ -300,26 +303,26 @@ export const ApiKeySettings = () => {
             key: 'OPENAI_API_KEY' as keyof ApiKeys,
             value: apiKeys.OPENAI_API_KEY,
             url: 'https://platform.openai.com/api-keys',
+            color: 'from-emerald-500/10 to-transparent',
+            dot: 'bg-emerald-500',
         },
         {
             name: 'Anthropic',
             key: 'ANTHROPIC_API_KEY' as keyof ApiKeys,
             value: apiKeys.ANTHROPIC_API_KEY,
             url: 'https://console.anthropic.com/settings/keys',
+            color: 'from-orange-500/10 to-transparent',
+            dot: 'bg-orange-500',
         },
         {
             name: 'Google Gemini',
             key: 'GEMINI_API_KEY' as keyof ApiKeys,
             value: apiKeys.GEMINI_API_KEY,
             url: 'https://ai.google.dev/api',
+            color: 'from-blue-500/10 to-transparent',
+            dot: 'bg-blue-500',
         },
     ];
-
-    const validateApiKey = (apiKey: string, provider: string) => {
-        // Validation logic will be implemented later
-        console.log(`Validating ${provider} API key: ${apiKey}`);
-        return true;
-    };
 
     const handleSave = (keyName: keyof ApiKeys, value: string) => {
         setApiKey(keyName, value);
@@ -328,131 +331,87 @@ export const ApiKeySettings = () => {
 
     const getMaskedKey = (key: string) => {
         if (!key) return '';
-        return '****************' + key.slice(-4);
+        return '••••••••••••' + key.slice(-4);
     };
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex flex-col">
-                <h2 className="flex items-center gap-1 text-base font-semibold">
+        <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+                <h2 className="flex items-center gap-2 text-base font-semibold">
                     API Keys <BYOKIcon />
                 </h2>
-
-                <p className="text-muted-foreground text-xs">
-                    By default, your API Key is stored locally on your browser and never sent
-                    anywhere else.
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                    Keys are stored locally in your browser and never sent to our servers.
                 </p>
             </div>
 
-            {apiKeyList.map(apiKey => (
-                <div key={apiKey.key} className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{apiKey.name} API Key:</span>
-                        <a
-                            href={apiKey.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-blue-400 underline-offset-2 hover:underline"
-                        >
-                            (Get API key here)
-                        </a>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        {isEditing === apiKey.key ? (
-                            <>
-                                <div className="flex-1">
-                                    <Input
-                                        value={apiKey.value || ''}
-                                        placeholder={`Enter ${apiKey.name} API key`}
-                                        onChange={e => setApiKey(apiKey.key, e.target.value)}
-                                    />
-                                </div>
-                                <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={() => handleSave(apiKey.key, apiKey.value || '')}
-                                >
-                                    <span className="flex items-center gap-1">✓ Save</span>
-                                </Button>
-                            </>
-                        ) : (
-                            <>
-                                <div className="flex flex-1 items-center gap-2 rounded-md border px-3 py-1.5">
-                                    {apiKey.value ? (
-                                        <span className="flex-1">{getMaskedKey(apiKey.value)}</span>
-                                    ) : (
-                                        <span className="text-muted-foreground flex-1 text-sm">
-                                            No API key set
-                                        </span>
-                                    )}
-                                </div>
-                                <Button
-                                    variant={'bordered'}
-                                    size="sm"
-                                    onClick={() => setIsEditing(apiKey.key)}
-                                >
-                                    {apiKey.value ? 'Change Key' : 'Add Key'}
-                                </Button>
-                            </>
-                        )}
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-};
-
-export const CreditsSettings = () => {
-    const remainingCredits = useChatStore(state => state.creditLimit.remaining);
-    const maxLimit = useChatStore(state => state.creditLimit.maxLimit);
-    const resetDate = useChatStore(state => state.creditLimit.reset);
-
-    const info = [
-        {
-            title: 'Plan',
-            value: (
-                <Badge variant="secondary" className="bg-brand/10 text-brand rounded-full">
-                    <span className="text-xs font-medium">FREE</span>
-                </Badge>
-            ),
-        },
-        {
-            title: 'Credits',
-            value: (
-                <div className="flex h-7 flex-row items-center gap-1 rounded-full py-1">
-                    <IconBoltFilled size={14} strokeWidth={2} className="text-brand" />
-                    <span className="text-brand text-sm font-medium">{remainingCredits}</span>
-                    <span className="text-brand text-sm opacity-50">/</span>
-                    <span className="text-brand text-sm opacity-50">{maxLimit}</span>
-                </div>
-            ),
-        },
-        {
-            title: 'Next reset',
-            value: moment(resetDate).fromNow(),
-        },
-    ];
-
-    return (
-        <div className="flex flex-col gap-6">
-            <div className="flex flex-col items-start gap-2">
-                <h2 className="flex items-center gap-1 text-base font-medium">Usage Credits</h2>
-                <Alert variant="info" className="w-full">
-                    <AlertDescription className="text-muted-foreground/70 text-sm leading-tight">
-                        You'll recieve some free credits everyday. Once credits are used, you can
-                        use your own API keys to continue.
-                    </AlertDescription>
-                </Alert>
-
-                <div className="divide-border flex w-full flex-col gap-1 divide-y">
-                    {info.map(item => (
-                        <div key={item.title} className="flex flex-row justify-between gap-1 py-4">
-                            <span className="text-muted-foreground text-sm">{item.title}</span>
-                            <span className="text-sm font-medium">{item.value}</span>
+            <div className="flex flex-col gap-3">
+                {apiKeyList.map(apiKey => (
+                    <div
+                        key={apiKey.key}
+                        className={`border-border/70 bg-gradient-to-br ${apiKey.color} rounded-xl border p-4`}
+                    >
+                        <div className="mb-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className={`size-2 rounded-full ${apiKey.dot}`} />
+                                <span className="text-sm font-semibold">{apiKey.name}</span>
+                            </div>
+                            <a
+                                href={apiKey.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-brand text-xs hover:underline"
+                            >
+                                Get key →
+                            </a>
                         </div>
-                    ))}
-                </div>
+
+                        <div className="flex items-center gap-2">
+                            {isEditing === apiKey.key ? (
+                                <>
+                                    <div className="flex-1">
+                                        <Input
+                                            value={apiKey.value || ''}
+                                            placeholder={`Enter ${apiKey.name} API key`}
+                                            className="h-8 text-sm"
+                                            onChange={e => setApiKey(apiKey.key, e.target.value)}
+                                        />
+                                    </div>
+                                    <Button
+                                        variant="default"
+                                        size="sm"
+                                        className="shrink-0"
+                                        onClick={() => handleSave(apiKey.key, apiKey.value || '')}
+                                    >
+                                        Save
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="bg-background/60 flex flex-1 items-center gap-2 rounded-lg border px-3 py-1.5">
+                                        {apiKey.value ? (
+                                            <span className="font-mono text-xs flex-1">
+                                                {getMaskedKey(apiKey.value)}
+                                            </span>
+                                        ) : (
+                                            <span className="text-muted-foreground flex-1 text-xs">
+                                                No key set
+                                            </span>
+                                        )}
+                                    </div>
+                                    <Button
+                                        variant={'bordered'}
+                                        size="sm"
+                                        className="shrink-0"
+                                        onClick={() => setIsEditing(apiKey.key)}
+                                    >
+                                        {apiKey.value ? 'Change' : 'Add'}
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -463,23 +422,33 @@ const MAX_CHAR_LIMIT = 6000;
 export const PersonalizationSettings = () => {
     const customInstructions = useChatStore(state => state.customInstructions);
     const setCustomInstructions = useChatStore(state => state.setCustomInstructions);
+
     const { editor } = useChatEditor({
         charLimit: MAX_CHAR_LIMIT,
         defaultContent: customInstructions,
         placeholder: 'Enter your custom instructions',
         enableEnter: true,
-        onUpdate(props) {
+        onUpdate(props: { editor: Editor }) {
             setCustomInstructions(props.editor.getText());
         },
     });
+
     return (
-        <div className="flex flex-col gap-1 pb-3">
-            <h3 className="text-base font-semibold">Customize your AI Response</h3>
-            <p className="text-muted-foreground text-sm">
-                These instructions will be added to the beginning of every message.
-            </p>
-            <div className=" shadow-subtle-sm border-border mt-2 rounded-lg border p-3">
-                <ChatEditor editor={editor} />
+        <div className="flex flex-col gap-6 pb-3">
+            {/* Theme picker */}
+            <ThemePicker />
+
+            {/* Custom instructions */}
+            <div className="border-border/60 flex flex-col gap-2 border-t pt-5">
+                <div>
+                    <h3 className="text-sm font-semibold">Custom AI Instructions</h3>
+                    <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
+                        These instructions are prepended to every conversation.
+                    </p>
+                </div>
+                <div className="border-border/70 shadow-subtle-sm mt-1 rounded-xl border p-3">
+                    <ChatEditor editor={editor} />
+                </div>
             </div>
         </div>
     );

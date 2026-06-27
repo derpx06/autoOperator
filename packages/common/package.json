@@ -17,7 +17,8 @@
         "@repo/shared": "*",
         "@repo/ui": "*",
         "@repo/actions": "*",
-        "@tiptap/extension-character-count": "^2.11.7"
+        "@tiptap/extension-character-count": "^2.11.7",
+        "next-themes": "^0.3.0"
     },
     "devDependencies": {
         "@repo/typescript-config": "*",

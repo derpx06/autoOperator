@@ -27,4 +27,5 @@ export * from './sources-stack';
 export * from './table-of-messages';
 export * from './text-shimmer';
 export * from './thread';
+export * from './theme-toggle';
 export * from './tools-menu';

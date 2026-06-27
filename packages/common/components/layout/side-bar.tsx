@@ -1,6 +1,8 @@
+'use client';
 import { FullPageLoader, HistoryItem } from '@repo/common/components';
 import { useRootContext } from '@repo/common/context';
-import { Thread, useAppStore, useChatStore } from '@repo/common/store';
+import { useAppStore, useChatStore } from '@repo/common/store';
+import { Thread } from '@repo/shared/types';
 import { Button, cn, Flex } from '@repo/ui';
 import { IconArrowBarLeft, IconArrowBarRight, IconPlus, IconSearch } from '@tabler/icons-react';
 import moment from 'moment';
@@ -13,10 +15,11 @@ export const Sidebar = () => {
     const { push } = useRouter();
     const isChatPage = pathname.startsWith('/chat');
     const threads = useChatStore(state => state.threads);
+    const pinThread = useChatStore(state => state.pinThread);
+    const unpinThread = useChatStore(state => state.unpinThread);
     const sortThreads = (threads: Thread[], sortBy: 'createdAt') => {
         return [...threads].sort((a, b) => moment(b[sortBy]).diff(moment(a[sortBy])));
     };
-    const clearAllThreads = useChatStore(state => state.clearAllThreads);
     const setIsSidebarOpen = useAppStore(state => state.setIsSidebarOpen);
     const isSidebarOpen = useAppStore(state => state.isSidebarOpen);
 
@@ -48,7 +51,7 @@ export const Sidebar = () => {
         if (threads.length === 0) return null;
         return (
             <Flex gap="xs" direction="col" items="start" className="w-full">
-                <p className="text-muted-foreground py-1 text-xs">{title}</p>
+                <p className="text-muted-foreground py-1 text-xs font-medium">{title}</p>
                 <Flex
                     className="border-border/50 w-full gap-0.5 border-l pl-2"
                     gap="none"
@@ -58,8 +61,11 @@ export const Sidebar = () => {
                         <HistoryItem
                             thread={thread}
                             key={thread.id}
+                            pinThread={() => pinThread(thread.id)}
+                            unpinThread={() => unpinThread(thread.id)}
+                            isPinned={thread.pinned}
                             dismiss={() => {
-                                setIsSidebarOpen(prev => false);
+                                setIsSidebarOpen(() => false);
                             }}
                             isActive={thread.id === currentThreadId}
                         />
