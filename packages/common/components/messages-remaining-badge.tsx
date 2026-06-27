@@ -1,9 +1,8 @@
-import { useUser } from '@clerk/nextjs';
 import { useApiKeysStore, useAppStore, useChatStore } from '@repo/common/store';
 import { motion } from 'framer-motion';
 
 export function MessagesRemainingBadge() {
-    const { user } = useUser();
+    const user = { id: 'default-user' };
     const chatMode = useChatStore(state => state.chatMode);
     const hasApiKeys = useApiKeysStore(state => state.hasApiKeyForChatMode(chatMode));
     const creditLimit = useChatStore(state => state.creditLimit);

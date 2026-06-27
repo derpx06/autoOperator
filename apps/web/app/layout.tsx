@@ -1,4 +1,3 @@
-import { ClerkProvider } from '@clerk/nextjs';
 import { RootLayout } from '@repo/common/components';
 import { ReactQueryProvider, RootProvider } from '@repo/common/context';
 import { TooltipProvider, cn } from '@repo/ui';
@@ -103,27 +102,20 @@ export default function ParentLayout({
             </head>
             <body>
                 {/* <PostHogProvider> */}
-                <ClerkProvider
-                    publishableKey={
-                        process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-                        'pk_test_Y2xlcmstbW9jay1rZXktOTkuY2xlcmsuYWNjb3VudHMuZGV2JA=='
-                    }
-                >
-                    <RootProvider>
-                        {/* <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem
-            disableTransitionOnChange
-          > */}
-                        <TooltipProvider>
-                            <ReactQueryProvider>
-                                <RootLayout>{children}</RootLayout>
-                            </ReactQueryProvider>
-                        </TooltipProvider>
-                        {/* </ThemeProvider> */}
-                    </RootProvider>
-                </ClerkProvider>
+                <RootProvider>
+                    {/* <ThemeProvider
+        attribute="class"
+        defaultTheme="light"
+        enableSystem
+        disableTransitionOnChange
+      > */}
+                    <TooltipProvider>
+                        <ReactQueryProvider>
+                            <RootLayout>{children}</RootLayout>
+                        </ReactQueryProvider>
+                    </TooltipProvider>
+                    {/* </ThemeProvider> */}
+                </RootProvider>
                 {/* </PostHogProvider> */}
             </body>
         </html>

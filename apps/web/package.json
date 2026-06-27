@@ -10,7 +10,6 @@
         "generate": "npx drizzle-kit generate"
     },
     "dependencies": {
-        "@clerk/nextjs": "^6.12.3",
         "@electric-sql/pglite": "0.2.13",
         "@electric-sql/pglite-repl": "^0.2.15",
         "@hotjar/browser": "^1.0.9",

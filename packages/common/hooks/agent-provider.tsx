@@ -1,4 +1,3 @@
-import { useAuth, useUser } from '@clerk/nextjs';
 import { useWorkflowWorker } from '@repo/ai/worker';
 import { ChatMode, ChatModeConfig } from '@repo/shared/config';
 import { ThreadItem } from '@repo/shared/types';
@@ -26,8 +25,8 @@ const AgentContext = createContext<AgentContextType | undefined>(undefined);
 
 export const AgentProvider = ({ children }: { children: ReactNode }) => {
     const { threadId: currentThreadId } = useParams();
-    const { isSignedIn } = useAuth();
-    const { user } = useUser();
+    const isSignedIn = true;
+    const user = { id: 'default-user' };
 
     const {
         updateThreadItem,
